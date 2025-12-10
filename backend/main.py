@@ -5,42 +5,17 @@ from sqlmodel import Session, select
 from typing import List, Optional
 import datetime
 
-# Import from our new files
 from config import settings
 from database import engine, get_session
 from models import Event, Registration, Feedback, Bookmark, BookmarkRequest, JoinRequest
+from auth import get_current_user
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f"Starting {settings.APP_NAME}...")
-    
-    # Ensure tables exist
-    # (The reset_db.py script handles the main creation, but this is a safety check)
     from sqlmodel import SQLModel
+    # This creates the tables in Supabase if they don't exist
     SQLModel.metadata.create_all(engine)
-    
-    # Seed Data if empty
-    with Session(engine) as session:
-        try:
-            existing_event = session.exec(select(Event)).first()
-            if not existing_event:
-                print("🌱 Seeding database...")
-                seed_event = Event(
-                    title="Campus Beach Cleanup", 
-                    date="2023-12-25", 
-                    location="Pantai Remis",
-                    category="Environment", 
-                    maxVolunteers=50, 
-                    currentVolunteers=0, 
-                    description="Help clean up the beach.", 
-                    organizerId="org1", 
-                    organizerName="EcoClub"
-                )
-                session.add(seed_event)
-                session.commit()
-        except Exception as e:
-            print(f"Skipping seed: {e}")
-    
     yield
     print("Shutting down...")
 
@@ -62,13 +37,13 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "Connected to Supabase!", "version": settings.VERSION}
+    return {"message": "API is running!", "version": settings.VERSION}
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-# 1. Events
+# EVENTS
 @app.get("/events", response_model=List[Event])
 async def get_events(organizerId: Optional[str] = None, session: Session = Depends(get_session)):
     query = select(Event)
@@ -77,18 +52,32 @@ async def get_events(organizerId: Optional[str] = None, session: Session = Depen
     return session.exec(query).all()
 
 @app.post("/events", response_model=Event)
-async def create_event(event: Event, session: Session = Depends(get_session)):
+async def create_event(
+    event: Event, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    if event.organizerId != current_user.get("sub"):
+         print(f"DEBUG 403: Payload orgId {event.organizerId} != Token sub {current_user.get('sub')}")
+         raise HTTPException(status_code=403, detail="User ID mismatch")
     session.add(event)
     session.commit()
     session.refresh(event)
     return event
 
 @app.patch("/events/{event_id}", response_model=Event)
-async def update_event_status(event_id: str, payload: dict, session: Session = Depends(get_session)):
+async def update_event_status(
+    event_id: str, 
+    payload: dict, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    
+    if event.organizerId != current_user.get("sub"):
+        print(f"DEBUG 403: Event orgId {event.organizerId} != Token sub {current_user.get('sub')}")
+        raise HTTPException(status_code=403, detail="Not authorized")
     if "status" in payload:
         event.status = payload["status"]
         session.add(event)
@@ -97,7 +86,16 @@ async def update_event_status(event_id: str, payload: dict, session: Session = D
     return event
 
 @app.post("/events/{event_id}/join")
-async def join_event(event_id: str, payload: JoinRequest, session: Session = Depends(get_session)):
+async def join_event(
+    event_id: str, 
+    payload: JoinRequest, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    if payload.userId != current_user.get("sub"):
+        print(f"DEBUG 403: Payload userId {payload.userId} != Token sub {current_user.get('sub')}")
+        raise HTTPException(status_code=403, detail="Cannot join for another user")
+
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -110,33 +108,37 @@ async def join_event(event_id: str, payload: JoinRequest, session: Session = Dep
     if existing_reg:
         raise HTTPException(status_code=400, detail="Already joined")
     
-    final_name = payload.userName if payload.userName else f"Student {payload.userId[-4:]}"
-    final_avatar = payload.userAvatar if payload.userAvatar else f"https://ui-avatars.com/api/?name={final_name}&background=random"
-
     new_reg = Registration(
         eventId=event_id,
         userId=payload.userId,
         joinedAt=datetime.date.today().isoformat(),
-        userName=final_name, 
-        userAvatar=final_avatar,
+        userName=payload.userName or f"Student {payload.userId[-4:]}", 
+        userAvatar=payload.userAvatar or "",
         status="pending"
     )
-    
     event.currentVolunteers += 1
-    
     session.add(new_reg)
     session.add(event)
     session.commit()
     session.refresh(new_reg)
     return new_reg
 
-# 2. Registrations
+# REGISTRATIONS
 @app.get("/events/{event_id}/registrations")
-async def get_event_registrations(event_id: str, session: Session = Depends(get_session)):
+async def get_event_registrations(
+    event_id: str, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
     return session.exec(select(Registration).where(Registration.eventId == event_id)).all()
 
 @app.patch("/registrations/{registration_id}")
-async def update_registration_status(registration_id: str, payload: dict, session: Session = Depends(get_session)):
+async def update_registration_status(
+    registration_id: str, 
+    payload: dict, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
     reg = session.get(Registration, registration_id)
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
@@ -150,7 +152,6 @@ async def update_registration_status(registration_id: str, payload: dict, sessio
         if event:
             event.currentVolunteers = max(0, event.currentVolunteers - 1)
             session.add(event)
-            
     elif old_status == 'rejected' and new_status != 'rejected':
         event = session.get(Event, reg.eventId)
         if event:
@@ -163,17 +164,23 @@ async def update_registration_status(registration_id: str, payload: dict, sessio
     return reg
 
 @app.get("/users/{user_id}/registrations")
-async def get_user_registrations(user_id: str, session: Session = Depends(get_session)):
+async def get_user_registrations(
+    user_id: str, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    # SECURITY CHECK
+    if user_id != current_user.get("sub"):
+        print(f"DEBUG 403: URL userId {user_id} != Token sub {current_user.get('sub')}")
+        raise HTTPException(status_code=403, detail="Access denied")
+
     regs = session.exec(select(Registration).where(Registration.userId == user_id)).all()
-    
     enriched_regs = []
     for r in regs:
         event = session.get(Event, r.eventId)
         has_feedback = session.exec(select(Feedback).where(
-            Feedback.eventId == r.eventId, 
-            Feedback.userId == user_id
+            Feedback.eventId == r.eventId, Feedback.userId == user_id
         )).first() is not None
-
         reg_dict = r.model_dump()
         if event:
             reg_dict["eventTitle"] = event.title
@@ -181,69 +188,81 @@ async def get_user_registrations(user_id: str, session: Session = Depends(get_se
             reg_dict["eventStatus"] = event.status
         reg_dict["hasFeedback"] = has_feedback
         enriched_regs.append(reg_dict)
-        
     return enriched_regs
 
-# 3. Feedbacks
+# FEEDBACK & BOOKMARKS
 @app.get("/events/{event_id}/rating")
 async def get_event_rating(event_id: str, session: Session = Depends(get_session)):
     feedbacks = session.exec(select(Feedback).where(Feedback.eventId == event_id)).all()
-    if not feedbacks:
-        return {"average": 0}
+    if not feedbacks: return {"average": 0}
     avg = sum(f.rating for f in feedbacks) / len(feedbacks)
     return {"average": round(avg, 1)}
 
 @app.get("/feedbacks")
 async def get_feedbacks(userId: Optional[str] = None, eventId: Optional[str] = None, session: Session = Depends(get_session)):
     query = select(Feedback)
-    if userId:
-        query = query.where(Feedback.userId == userId)
-    if eventId:
-        query = query.where(Feedback.eventId == eventId)
+    if userId: query = query.where(Feedback.userId == userId)
+    if eventId: query = query.where(Feedback.eventId == eventId)
     return session.exec(query).all()
 
 @app.post("/feedbacks")
-async def submit_feedback(feedback: Feedback, session: Session = Depends(get_session)):
+async def submit_feedback(
+    feedback: Feedback, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    if feedback.userId != current_user.get("sub"):
+        print(f"DEBUG 403: Feedback userId {feedback.userId} != Token sub {current_user.get('sub')}")
+        raise HTTPException(status_code=403, detail="Cannot submit feedback for another user")
     session.add(feedback)
     session.commit()
     return {"status": "success"}
 
-# 4. Bookmarks
 @app.get("/users/{user_id}/bookmarks")
-async def get_user_bookmarks(user_id: str, session: Session = Depends(get_session)):
+async def get_user_bookmarks(
+    user_id: str, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    # SECURITY CHECK
+    if user_id != current_user.get("sub"):
+         print(f"DEBUG 403: URL userId {user_id} != Token sub {current_user.get('sub')}")
+         raise HTTPException(status_code=403, detail="Access denied")
     bookmarks = session.exec(select(Bookmark).where(Bookmark.userId == user_id)).all()
     return [b.eventId for b in bookmarks]
 
 @app.post("/users/{user_id}/bookmarks")
-async def toggle_bookmark(user_id: str, body: BookmarkRequest, session: Session = Depends(get_session)):
+async def toggle_bookmark(
+    user_id: str, 
+    body: BookmarkRequest, 
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    # SECURITY CHECK
+    if user_id != current_user.get("sub"):
+         print(f"DEBUG 403: URL userId {user_id} != Token sub {current_user.get('sub')}")
+         raise HTTPException(status_code=403, detail="Access denied")
     existing = session.exec(select(Bookmark).where(
-        Bookmark.userId == user_id, 
-        Bookmark.eventId == body.eventId
+        Bookmark.userId == user_id, Bookmark.eventId == body.eventId
     )).first()
-    
     if existing:
         session.delete(existing)
     else:
-        new_bookmark = Bookmark(userId=user_id, eventId=body.eventId)
-        session.add(new_bookmark)
-    
+        session.add(Bookmark(userId=user_id, eventId=body.eventId))
     session.commit()
-    
     bookmarks = session.exec(select(Bookmark).where(Bookmark.userId == user_id)).all()
     return [b.eventId for b in bookmarks]
 
 @app.get("/users/{user_id}/badges")
 async def get_user_badges(user_id: str):
-    return [
-        {
-            "id": "1",
-            "name": "First Step",
-            "description": "Joined your first event",
-            "icon": "🌱",
-            "color": "bg-green-50 text-green-600",
-            "earnedAt": "2023-10-01"
-        }
-    ]
+    return [{
+        "id": "1",
+        "name": "First Step",
+        "description": "Joined your first event",
+        "icon": "🌱",
+        "color": "bg-green-50 text-green-600",
+        "earnedAt": "2023-10-01"
+    }]
 
 if __name__ == "__main__":
     import uvicorn

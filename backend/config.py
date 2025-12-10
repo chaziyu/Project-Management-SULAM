@@ -10,24 +10,15 @@ class Settings(BaseSettings):
         extra="allow"
     )
 
-    # App Configuration
     APP_NAME: str = "Volunteerism App Backend"
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-
-    # Server Configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-
-    # Database
     DATABASE_URL: Optional[str] = None
-
-    # CORS Configuration
-    CORS_ORIGINS: Union[List[str], str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ]
+    CLERK_ISSUER: Optional[str] = None
+    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:5173"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

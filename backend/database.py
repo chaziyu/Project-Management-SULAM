@@ -1,15 +1,20 @@
 from sqlmodel import create_engine, Session
 from config import settings
 
-# 1. Get the Database URL
 connection_string = settings.DATABASE_URL
-if connection_string and connection_string.startswith("postgres://"):
+
+if not connection_string:
+    raise ValueError("DATABASE_URL is not set in .env file")
+
+# SQLAlchemy requires 'postgresql://', but Supabase sometimes gives 'postgres://'
+if connection_string.startswith("postgres://"):
     connection_string = connection_string.replace("postgres://", "postgresql://", 1)
 
-# 2. Create Engine with fixes for Cloud Hosting (Pooler support + Keepalive)
+# Enable connection keepalives to prevent timeouts on the cloud
 engine = create_engine(
     connection_string,
-    pool_pre_ping=True,  # Checks connection health before using it
+    pool_pre_ping=True, 
+    echo=settings.DEBUG,
     connect_args={
         "keepalives": 1,
         "keepalives_idle": 30,
