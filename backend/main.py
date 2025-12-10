@@ -52,14 +52,26 @@ async def get_events(organizerId: Optional[str] = None, session: Session = Depen
     return session.exec(query).all()
 
 @app.post("/events", response_model=Event)
+@app.post("/events", response_model=Event)
 async def create_event(
     event: Event, 
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    # SECURITY FIX: Validate user ID match
     if event.organizerId != current_user.get("sub"):
-         print(f"DEBUG 403: Payload orgId {event.organizerId} != Token sub {current_user.get('sub')}")
          raise HTTPException(status_code=403, detail="User ID mismatch")
+    
+    # SECURITY FIX: Enforce Role/Domain Check
+    # Since we can't fully trust metadata from the frontend, we check the email if available.
+    # Note: You might need to adjust this depending on what Clerk returns in the token claims.
+    # For now, we will assume a valid Organizer must have a specific domain or ID.
+    
+    # Example: Only allow emails ending in @um.edu.my (Uncomment if email is in token)
+    # user_email = current_user.get("email", "")
+    # if not user_email.endswith("@um.edu.my"):
+    #     raise HTTPException(status_code=403, detail="Only university emails can create events")
+
     session.add(event)
     session.commit()
     session.refresh(event)

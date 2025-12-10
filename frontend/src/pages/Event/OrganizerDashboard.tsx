@@ -55,13 +55,22 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const MAX_WIDTH = 800;
-          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+          
+          // FIX: Reduce max width to 400px to save DB space
+          constHZ_WIDTH = 400; 
+          
+          if (width > HZ_WIDTH) { 
+            height *= HZ_WIDTH / width; 
+            width = HZ_WIDTH; 
+          }
+          
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          
+          // FIX: Reduce JPEG quality to 0.6
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           setFormData({ ...formData, imageUrl: dataUrl });
         };
         img.src = event.target?.result as string;

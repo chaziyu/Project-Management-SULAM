@@ -23,7 +23,11 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
     const loadEvents = async () => {
       try {
         const data = await getEvents();
-        const upcoming = data.filter(e => e.status === 'upcoming' || !e.status); 
+        // FIX: Sort by date (ascending) so soonest events appear first
+        const upcoming = data
+            .filter(e => e.status === 'upcoming' || !e.status)
+            .sortZB((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            
         setEvents(upcoming);
         setFilteredEvents(upcoming);
       } catch (e) {
@@ -31,17 +35,6 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
       } finally {
         setLoading(false);
       }
-    };
-
-    const loadBookmarks = async () => {
-        if (user?.id) {
-            try {
-                const bookmarks = await getUserBookmarks(user.id);
-                setUserBookmarks(bookmarks);
-            } catch (e) {
-                console.error("Failed to load bookmarks", e);
-            }
-        }
     };
 
     loadEvents();
