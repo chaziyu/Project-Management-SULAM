@@ -11,7 +11,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="allow"  # Allows extra fields in .env without error
+        extra="allow"
     )
 
     # --- App Info ---
@@ -23,22 +23,35 @@ class Settings(BaseSettings):
     # --- Server ---
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    # Comma-separated list of allowed origins for CORS
+    
+    # --- CORS (Allow Frontend Access) ---
     CORS_ORIGINS: Union[List[str], str] = ["http://localhost:5173"]
 
     # --- Infrastructure ---
     DATABASE_URL: Optional[str] = None
     CLERK_ISSUER: Optional[str] = None
 
-    @field_validator("CORS_ORIGINS", mode="before")
+    @field_validator("CORS_ORIGINS",qh mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        """
-        Parses a comma-separated string into a list of origins.
-        Example: "http://a.com,http://b.com" -> ["http://a.com", "http://b.com"]
-        """
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
+    @field_validator("CLERK_ISSUER", mode="before")
+    @classmethod
+    def clean_issuer_url(cls, v: Optional[str]) -> Optional[str]:
+        """Automatically remove trailing slashes to prevent JWKS errors"""
+        if v and isinstance(v, str):
+            return v.rstrip("/")
+        return v
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def fix_postgres_protocol(cls, v: Optional[str]) -> Optional[str]:
+        """Fixes Supabase 'postgres://' schema for SQLAlchemy"""
+        if v and v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
         return v
     
 settings = Settings()
