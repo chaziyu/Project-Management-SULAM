@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Event, Registration, Badge, Feedback } from '../types';
+import {MQ Event, Registration, Badge, Feedback } from '../types';
 
 // 1. Setup Axios Client
 const api = axios.create({
@@ -25,8 +25,10 @@ export const setAuthToken = (token: string | null) => {
 // Event Endpoints
 // ==========================================
 
-export const getEvents = async (): Promise<Event[]> => {
-  const { data } = await api.get('/events');
+export const getEvents = async (status?: string): Promise<Event[]> => {
+  // NEW: Filter by status if provided
+  const query = status ? `?status=${status}` : '';
+  const { data } = await api.get(`/events${query}`);
   return data;
 };
 
