@@ -23,7 +23,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         if jwks_url:
             async with httpx.AsyncClient() as client:
                 response = await client.get(jwks_url)
-                # Check if JWKS fetch actually succeeded
                 if response.status_code != 200:
                     print(f"Auth Error: Failed to fetch JWKS from {jwks_url}. Status: {response.status_code}")
                     raise Exception("JWKS Fetch Failed")
@@ -58,13 +57,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
                 issuer=settings.CLERK_ISSUER
             )
         else:
-            # Fallback for local testing (NOT SECURE)
+            # Fallback for local testing (NOT SECURE in production)
             payload = jwt.get_unverified_claims(token)
 
         return payload
             
     except Exception as e:
-        # This will show up in your Render Logs!
         print(f"--- AUTH ERROR DEBUG ---")
         print(f"Error: {str(e)}")
         print(f"Configured Issuer: {settings.CLERK_ISSUER}")
@@ -77,4 +75,10 @@ def is_organizer(user_payload: dict) -> bool:
     Requires Clerk Session Token to include 'unsafe_metadata'.
     """
     metadata = user_payload.get("unsafe_metadata", {})
+    
+    # POLISHED: Add debug log if metadata is missing (Common Config Error)
+    if not metadata:
+        print(f"DEBUG: 'unsafe_metadata' is missing for user {user_payload.get('sub')}. "
+              "Check if Clerk JWT Template is named 'default' and includes {{user.unsafe_metadata}}.")
+        
     return metadata.get("role") == "organizer"

@@ -51,7 +51,8 @@ export const getOrganizerEvents = async (organizerId: string): Promise<Event[]> 
   return data;
 };
 
-export constHf createEvent = async (eventData: Partial<Event>): Promise<Event> => {
+// FIX: Corrected 'constHf' to 'const'
+export const createEvent = async (eventData: Partial<Event>): Promise<Event> => {
   const { data } = await api.post('/events', eventData);
   return data;
 };

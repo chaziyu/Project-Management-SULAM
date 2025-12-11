@@ -25,7 +25,9 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # --- CORS (Allow Frontend Access) ---
-    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:5173"]
+    # Default includes standard local ports. 
+    # For Vercel, add your URL to the .env file: CORS_ORIGINS=https://your-app.vercel.app
+    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # --- Infrastructure ---
     DATABASE_URL: Optional[str] = None
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
     @classmethod
     def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str):
+            # FIX: Robust parsing handles spaces after commas
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
