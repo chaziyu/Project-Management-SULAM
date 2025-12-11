@@ -13,19 +13,20 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
     """
     token = credentials.credentials
     
-    # Enforce CLERK_ISSUER to prevent forging tokens
     if not settings.CLERK_ISSUER:
-        # Fallback for dev if not set, but warn
-        print("WARNING: CLERK_ISSUER not set in .env")
+        print("WARNING: CLERK_ISSUER not set in environment. Skipping verification.")
     
     try:
         # 1. Fetch Clerk's JWKS (Public Keys)
-        # In production, you might want to cache this or use a library that handles caching
         jwks_url = f"{settings.CLERK_ISSUER}/.well-known/jwks.json" if settings.CLERK_ISSUER else None
         
         if jwks_url:
             async with httpx.AsyncClient() as client:
                 response = await client.get(jwks_url)
+                # Check if JWKS fetch actually succeeded
+                if response.status_code != 200:
+                    print(f"Auth Error: Failed to fetch JWKS from {jwks_url}. Status: {response.status_code}")
+                    raise Exception("JWKS Fetch Failed")
                 jwks = response.json()
 
             # 2. Match the Key ID (kid)
@@ -45,9 +46,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
                     break
             
             if not rsa_key:
-                raise HTTPException(status_code=401, detail="Unable to find appropriate key")
+                print(f"Auth Error: Token KID {token_kid} not found in Clerk JWKS.")
+                raise HTTPException(status_code=401, detail="Invalid token signature key")
 
-            # 3. Decode
+            # 3. Decode & Verify
             payload = jwt.decode(
                 token,
                 rsa_key,
@@ -56,14 +58,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
                 issuer=settings.CLERK_ISSUER
             )
         else:
-            # Fallback for local testing without ISSUER set (NOT SECURE for prod)
-            # This allows decoding but skips signature verification if no issuer is configured
+            # Fallback for local testing (NOT SECURE)
             payload = jwt.get_unverified_claims(token)
 
         return payload
             
     except Exception as e:
-        print(f"Auth Error: {e}")
+        # This will show up in your Render Logs!
+        print(f"--- AUTH ERROR DEBUG ---")
+        print(f"Error: {str(e)}")
+        print(f"Configured Issuer: {settings.CLERK_ISSUER}")
+        print(f"------------------------")
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 def is_organizer(user_payload: dict) -> bool:
@@ -72,5 +77,4 @@ def is_organizer(user_payload: dict) -> bool:
     Requires Clerk Session Token to include 'unsafe_metadata'.
     """
     metadata = user_payload.get("unsafe_metadata", {})
-    # Check if role is 'organizer'. Adapt key if your metadata structure is different.
     return metadata.get("role") == "organizer"
