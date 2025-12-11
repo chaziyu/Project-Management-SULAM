@@ -8,7 +8,7 @@ from sqlmodel import Session, select, SQLModel
 
 from config import settings
 from database import engine, get_session
-from auth import get_current_user
+from auth import get_current_user, is_organizer
 from models import (
     Event, Registration, Feedback, Bookmark, 
     BookmarkRequest, JoinRequest, 
@@ -78,11 +78,17 @@ async def create_event(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a new event. Requires Auth."""
-    # Ensure the creator is assigning the event to themselves
+    """Create a new event. Requires Auth & Organizer Role."""
+    # 1. Check if user is creating event for themselves
     if event.organizerId != current_user.get("sub"):
          raise HTTPException(status_code=403, detail="User ID mismatch")
     
+    # 2. SECURITY FIX: Enforce Organizer Role
+    # If you haven't set up Clerk Session Tokens yet, this might fail.
+    # Comment out the next 2 lines if you need to test without role checks first.
+    if not is_organizer(current_user):
+        raise HTTPException(status_code=403, detail="Only organizers can create events")
+
     session.add(event)
     session.commit()
     session.refresh(event)
@@ -91,7 +97,7 @@ async def create_event(
 @app.patch("/events/{event_id}", response_model=Event)
 async def update_event_status(
     event_id: str, 
-    payload: UpdateEventStatusRequest, # Updated for validation
+    payload: UpdateEventStatusRequest, 
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
@@ -103,6 +109,10 @@ async def update_event_status(
     if event.organizerId != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # SECURITY FIX: Enforce Organizer Role
+    if not is_organizer(current_user):
+        raise HTTPException(status_code=403, detail="Only organizers can update events")
+
     event.status = payload.status
     session.add(event)
     session.commit()
@@ -142,9 +152,6 @@ async def join_event(
         status=RegistrationStatus.PENDING 
     )
     
-    # We do NOT increment currentVolunteers here. 
-    # Only confirmed users count towards the quota.
-    
     session.add(new_reg)
     session.commit()
     session.refresh(new_reg)
@@ -159,6 +166,7 @@ async def get_event_registrations(
     current_user: dict = Depends(get_current_user)
 ):
     """Get all participants for a specific event."""
+    # Optional: You could verify current_user is the organizer of event_id here
     return session.exec(select(Registration).where(Registration.eventId == event_id)).all()
 
 @app.patch("/registrations/{registration_id}")
@@ -183,7 +191,7 @@ async def update_registration_status(
     old_status = reg.status
     new_status = payload.status
     
-    # FIXED: Logic to update count only when CONFIRMED and enforce MAX LIMIT
+    # Logic to update count only when CONFIRMED and enforce MAX LIMIT
     if new_status == RegistrationStatus.CONFIRMED and old_status != RegistrationStatus.CONFIRMED:
         # Check if event is full before confirming
         if event.currentVolunteers >= event.maxVolunteers:
@@ -227,7 +235,7 @@ async def get_user_registrations(
         reg_dict = r.model_dump()
         if event:
             reg_dict["eventTitle"] = event.title
-            reg_dict["eventDate"] = event.date 
+            reg_dict["eventDate"] = event.date.isoformat() if isinstance(event.date, datetime.date) else event.date
             reg_dict["eventStatus"] = event.status
         reg_dict["hasFeedback"] = has_feedback
         enriched_regs.append(reg_dict)
