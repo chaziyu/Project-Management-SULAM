@@ -37,6 +37,7 @@ class Event(SQLModel, table=True):
     # FIXED: Removed sa_column_kwargs={"type_": "TEXT"}
     # Since we are storing URLs now, the default String type is perfect.
     imageUrl: Optional[str] = Field(default=None) 
+    tasks: str = Field(default="")
     
     status: str = Field(default=EventStatus.UPCOMING)
 

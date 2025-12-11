@@ -26,6 +26,7 @@ export interface Event {
   organizerId: string;
   organizerName: string;
   imageUrl?: string;
+  tasks?: string;
   status: 'upcoming' | 'completed';
 }
 
@@ -35,13 +36,13 @@ export interface Registration {
   userId: string;
   status: 'pending' | 'confirmed' | 'rejected';
   joinedAt: string;
-  
+
   // Flattened fields for easy display in tables/cards
   eventTitle?: string;
   eventDate?: string;
   eventStatus?: string;
   hasFeedback?: boolean;
-  
+
   // Organizer view fields
   userName?: string;
   userAvatar?: string;
