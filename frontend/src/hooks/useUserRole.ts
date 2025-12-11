@@ -4,8 +4,16 @@ import { UserRole } from '../types';
 export function useUserRole() {
   const { user, isLoaded } = useUser();
   
-  // Access role stored in Clerk's unsafeMetadata (set during signup)
-  const role = user?.unsafeMetadata?.role as UserRole | undefined;
+  // FIX 5: Validate that the metadata role is actually a valid UserRole.
+  // This prevents UI issues if a user manually spoofs 'unsafeMetadata' 
+  // with an invalid string in their browser console.
+  const rawRole = user?.unsafeMetadata?.role as string | undefined;
+  
+  // Check if rawRole exists in the UserRole enum values
+  const isValidRole = Object.values(UserRole).includes(rawRole as UserRole);
+  
+  // Default to VOLUNTEER if the role is missing or invalid
+  const role = isValidRole ? (rawRole as UserRole) : UserRole.VOLUNTEER;
   
   return {
     role,
