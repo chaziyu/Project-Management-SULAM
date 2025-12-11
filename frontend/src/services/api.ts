@@ -1,5 +1,5 @@
 import axios from 'axios';
-import {MQ Event, Registration, Badge, Feedback } from '../types';
+import { Event, Registration, Badge, Feedback } from '../types';
 
 // 1. Setup Axios Client
 const api = axios.create({
