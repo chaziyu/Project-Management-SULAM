@@ -13,14 +13,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
     """
     token = credentials.credentials
     
-    # 1. DEV MODE: Skip signature verification if no issuer configured
+    # FIX: SECURITY - Enforce CLERK_ISSUER to prevent forging tokens in dev or prod
     if not settings.CLERK_ISSUER:
-        try:
-            return jwt.get_unverified_claims(token)
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid token structure")
+        raise HTTPException(status_code=500, detail="Server misconfiguration: CLERK_ISSUER is missing.")
 
-    # 2. PROD MODE: Verify signature against Clerk's public keys
+    # 2. Verify signature against Clerk's public keys
     try:
         # Fetch Clerk's JSON Web Key Set (JWKS)
         # Optimization Tip: In high-scale apps, cache this response to avoid HTTP calls on every request.
