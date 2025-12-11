@@ -16,6 +16,7 @@ from models import (
     RegistrationStatus
 )
 
+
 # --- Lifespan (Startup/Shutdown) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -337,3 +338,101 @@ async def get_user_badges(user_id: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, reload=True)
+
+# NEW: Endpoint to Edit Event Details
+@app.put("/events/{event_id}", response_model=Event)
+async def update_event_details(
+    event_id: str,
+    event_update: Event, # We accept the full Event object structure
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    """Update event details (Title, Description, Image, etc)."""
+    # 1. Fetch existing
+    db_event = session.get(Event, event_id)
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # 2. Authorization
+    if db_event.organizerId != current_user.get("sub"):
+        raise HTTPException(status_code=403, detail="Not authorized to edit this event")
+    
+    # 3. Update fields (excluding ID and OrganizerID to be safe)
+    db_event.title = event_update.title
+    db_event.date = event_update.date
+    db_event.location = event_update.location
+    db_event.category = event_update.category
+    db_event.maxVolunteers = event_update.maxVolunteers
+    db_event.description = event_update.description
+    db_event.tasks = event_update.tasks
+    if event_update.imageUrl: # Only update if new image provided
+        db_event.imageUrl = event_update.imageUrl
+        
+    session.add(db_event)
+    session.commit()
+    session.refresh(db_event)
+    return db_event
+
+# ... (Keep update_event_status and join_event as is)
+
+# ==========================================
+# BADGES (Make Dynamic)
+# ==========================================
+
+# ... (Keep Registration and Feedback endpoints as is)
+
+@app.get("/users/{user_id}/badges")
+async def get_user_badges(
+    user_id: str,
+    session: Session = Depends(get_session)
+):
+    """
+    Dynamically calculate badges based on completed events.
+    Fixes 'Cannot add badge' by automating the process.
+    """
+    # 1. Count completed & confirmed registrations
+    # Note: We need to join Registration with Event to check if the event is actually completed
+    statement = (
+        select(Registration)
+        .join(Event)
+        .where(Registration.userId == user_id)
+        .where(Registration.status == RegistrationStatus.CONFIRMED)
+        .where(Event.status == "completed")
+    )
+    completed_count = len(session.exec(statement).all())
+    
+    badges = []
+
+    # Logic: Award badges based on count
+    if completed_count >= 1:
+        badges.append({
+            "id": "badge_1",
+            "name": "First Step",
+            "description": "Completed your first volunteer mission",
+            "icon": "🌱",
+            "color": "bg-green-50 text-green-600",
+            "earnedAt": "2023-01-01" # In a real app, you'd calculate date
+        })
+    
+    if completed_count >= 3:
+        badges.append({
+            "id": "badge_3",
+            "name": "Helping Hand",
+            "description": "Completed 3 volunteer missions",
+            "icon": "🤝",
+            "color": "bg-blue-50 text-blue-600",
+            "earnedAt": "2023-02-01"
+        })
+
+    if completed_count >= 5:
+        badges.append({
+            "id": "badge_5",
+            "name": "Super Star",
+            "description": "A true community hero (5+ missions)",
+            "icon": "⭐",
+            "color": "bg-yellow-50 text-yellow-600",
+            "earnedAt": "2023-03-01"
+        })
+
+    returnSV = badges
+    return returnSV

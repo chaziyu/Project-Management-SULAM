@@ -1,9 +1,11 @@
+// [file-path]: frontend/src/pages/Event/OrganizerDashboard.tsx
+
 import React, { useEffect, useState } from 'react';
-import { User, Event, Registration } from '../../types';
-import { supabase } from '../../services/supabaseClient'; // NEW IMPORT
+import { User, Event, Registration, Feedback } from '../../types';
+import { supabase } from '../../services/supabaseClient';
 import { 
   createEvent, getOrganizerEvents, updateEventStatus, getEventAverageRating, 
-  getFeedbacks, getEventRegistrations, updateRegistrationStatus 
+  getFeedbacks, getEventRegistrations, updateRegistrationStatus, updateEvent // Imported updateEvent
 } from '../../services/api';
 
 interface Props { user: User; }
@@ -11,16 +13,25 @@ interface EventWithStats extends Event { avgRating?: number; feedbackCount?: num
 
 export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const [events, setEvents] = useState<EventWithStats[]>([]);
-  const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
+  
+  // Modal States
+  const [showModal, setShowModal] = useState(false);
   const [participantModal, setParticipantModal] = useState<{isOpen: boolean, eventId: string, eventTitle: string} | null>(null);
+  const [reviewsModal, setReviewsModal] = useState<{isOpen: boolean, eventId: string, eventTitle: string} | null>(null); // NEW: Reviews Modal
+  
+  // Data States
   const [currentParticipants, setCurrentParticipants] = useState<Registration[]>([]);
+  const [currentReviews, setCurrentReviews] = useState<Feedback[]>([]); // NEW: Reviews Data
+  
+  // Edit State
+  const [editingEventId, setEditingEventId] = useState<string | null>(null); // NEW: Track if editing
+
   const [formData, setFormData] = useState({
     title: '', date: '', location: '', category: 'Campus Life',
     maxVolunteers: 20, description: '', tasks: '', imageUrl: ''
   });
   
-  // NEW: Upload state
   const [uploading, setUploading] = useState(false);
 
   const fetchEvents = async () => {
@@ -40,42 +51,70 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   useEffect(() => { fetchEvents(); }, [user.id]);
 
+  // NEW: Fetch Reviews when Reviews Modal opens
   useEffect(() => {
-    if (participantModal?.isOpen) fetchParticipants(participantModal.eventId);
+    if (reviewsModal?.isOpen) {
+        const loadReviews = async () => {
+            const data = await getFeedbacks(undefined, reviewsModal.eventId);
+            setCurrentReviews(data);
+        };
+        loadReviews();
+    }
+  }, [reviewsModal?.isOpen]);
+
+  useEffect(() => {
+    if (participantModal?.isOpen) {
+        const fetchParticipants = async () => {
+            const participants = await getEventRegistrations(participantModal.eventId);
+            setCurrentParticipants(participants);
+        };
+        fetchParticipants();
+    }
   }, [participantModal?.isOpen]);
 
-  const fetchParticipants = async (eventId: string) => {
-    const participants = await getEventRegistrations(eventId);
-    setCurrentParticipants(participants);
+  // NEW: Handle Edit Button Click
+  const handleEditClick = (event: Event) => {
+    setEditingEventId(event.id);
+    setFormData({
+        title: event.title,
+        date: event.date,
+        location: event.location,
+        category: event.category,
+        maxVolunteers: event.maxVolunteers,
+        description: event.description,
+        tasks: event.tasks || '',
+        imageUrl: event.imageUrl || ''
+    });
+    setShowModal(true);
   };
 
-  // UPDATED: Handle Image Upload via Supabase
+  // NEW: Reset form on modal close
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingEventId(null);
+    setFormData({ title: '', date: '', location: '', category: 'Campus Life', maxVolunteers: 20, description: '', tasks: '', imageUrl: '' });
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true);
       const file = e.target.files?.[0];
       if (!file) return;
 
-      // 1. Generate unique file path
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 2. Upload to Supabase 'event-banners' bucket
       const { error: uploadError } = await supabase.storage
         .from('event-banners')
         .upload(filePath, file);
 
-      if (uploadError) {
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
-      // 3. Get Public URL
       const { data } = supabase.storage
         .from('event-banners')
         .getPublicUrl(filePath);
 
-      // 4. Save URL to state
       setFormData({ ...formData, imageUrl: data.publicUrl });
       
     } catch (error: any) {
@@ -88,12 +127,22 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (uploading) return; // Prevent submit while uploading
+    if (uploading) return;
     
-    await createEvent({ ...formData, organizerId: user.id, organizerName: user.name });
-    setShowModal(false);
-    fetchEvents();
-    setFormData({ title: '', date: '', location: '', category: 'Campus Life', maxVolunteers: 20, description: '', tasks: '', imageUrl: '' });
+    try {
+        if (editingEventId) {
+            // Update Existing
+            await updateEvent(editingEventId, { ...formData, organizerId: user.id, organizerName: user.name } as Event);
+        } else {
+            // Create New
+            await createEvent({ ...formData, organizerId: user.id, organizerName: user.name });
+        }
+        handleCloseModal();
+        fetchEvents();
+    } catch (error) {
+        console.error(error);
+        alert("Failed to save event.");
+    }
   };
 
   const handleConclude = async (eventId: string) => {
@@ -102,8 +151,7 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
         await updateEventStatus(eventId, 'completed');
         fetchEvents();
       } catch (error: any) {
-        console.error(error);
-        alert(error.response?.data?.detail || "Failed to conclude event");
+        alert("Failed to conclude event");
       }
     }
   };
@@ -111,11 +159,11 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const handleParticipantAction = async (registrationId: string, action: 'confirmed' | 'rejected', eventId: string) => {
       try {
         await updateRegistrationStatus(registrationId, action);
-        await fetchParticipants(eventId);
-        await fetchEvents();
+        const participants = await getEventRegistrations(eventId); // Refresh local list
+        setCurrentParticipants(participants);
+        fetchEvents();
       } catch (error: any) {
-        console.error("Failed to update participant status", error);
-        alert(error.response?.data?.detail || "Action failed");
+        alert("Action failed");
       }
   };
 
@@ -143,22 +191,42 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
                 <div className="flex items-center gap-2 mb-2"><span className="text-[10px] font-bold text-primary-700 bg-primary-50 px-2 py-1 rounded-md uppercase tracking-wider">{event.category}</span><span className="text-xs font-medium text-slate-400">{event.date}</span></div>
                 <h3 className="text-lg font-bold text-slate-900 mb-1">{event.title}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-1">📍 {event.location}</p>
-                {activeTab === 'completed' && (<div className="mt-4 flex items-center gap-4 bg-yellow-50 p-3 rounded-xl w-fit border border-yellow-100"><div className="flex items-center text-yellow-600 gap-1"><span className="text-xl font-bold">{event.avgRating || 0}</span><span>★</span></div><span className="text-xs font-medium text-yellow-700">{event.feedbackCount} Student Reviews</span></div>)}
+                {/* REVIEWS BUTTON */}
+                {activeTab === 'completed' && (
+                    <button 
+                        onClick={() => setReviewsModal({isOpen: true, eventId: event.id, eventTitle: event.title})}
+                        className="mt-4 flex items-center gap-4 bg-yellow-50 p-3 rounded-xl w-fit border border-yellow-100 hover:bg-yellow-100 transition-colors text-left"
+                    >
+                        <div className="flex items-center text-yellow-600 gap-1"><span className="text-xl font-bold">{event.avgRating || 0}</span><span>★</span></div>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-yellow-800">View Reviews</span>
+                            <span className="text-[10px] font-medium text-yellow-600">{event.feedbackCount} Student Reviews</span>
+                        </div>
+                    </button>
+                )}
               </div>
               <div className="flex flex-row lg:flex-col items-center lg:items-end gap-4 border-t lg:border-t-0 border-slate-100 pt-4 lg:pt-0 justify-between lg:justify-center">
                  <div className="flex items-center gap-6 bg-slate-50 px-5 py-3 rounded-xl"><div className="text-center lg:text-right"><div className="text-2xl font-bold text-slate-900 leading-none">{event.currentVolunteers}</div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Joined</div></div></div>
-                 {activeTab === 'upcoming' && (<div className="flex flex-col gap-2 w-full lg:w-auto"><button onClick={() => setParticipantModal({isOpen: true, eventId: event.id, eventTitle: event.title})} className="w-full lg:w-40 h-10 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">Manage Volunteers</button><button onClick={() => handleConclude(event.id)} className="w-full lg:w-40 h-10 text-xs font-bold text-primary-700 bg-primary-50 border border-primary-100 rounded-lg hover:bg-primary-100 transition-colors">Conclude Event</button></div>)}
+                 {activeTab === 'upcoming' && (
+                    <div className="flex flex-col gap-2 w-full lg:w-auto">
+                        <button onClick={() => setParticipantModal({isOpen: true, eventId: event.id, eventTitle: event.title})} className="w-full lg:w-40 h-10 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">Manage Volunteers</button>
+                        {/* EDIT BUTTON */}
+                        <button onClick={() => handleEditClick(event)} className="w-full lg:w-40 h-10 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">Edit Details</button>
+                        <button onClick={() => handleConclude(event.id)} className="w-full lg:w-40 h-10 text-xs font-bold text-primary-700 bg-primary-50 border border-primary-100 rounded-lg hover:bg-primary-100 transition-colors">Conclude Event</button>
+                    </div>
+                 )}
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* CREATE / EDIT MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleCloseModal}></div>
           <div className="bg-white w-full h-[90vh] sm:h-auto sm:max-h-[90vh] sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col relative z-10">
-            <div className="flex justify-between items-center p-5 border-b border-slate-100"><h3 className="font-bold text-lg text-slate-900">Plan Campus Activity</h3><button onClick={() => setShowModal(false)} className="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200">✕</button></div>
+            <div className="flex justify-between items-center p-5 border-b border-slate-100"><h3 className="font-bold text-lg text-slate-900">{editingEventId ? 'Edit Activity' : 'Plan Activity'}</h3><button onClick={handleCloseModal} className="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200">✕</button></div>
             <div className="flex-1 overflow-y-auto p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -181,13 +249,14 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
             </div>
             <div className="p-5 border-t border-slate-100 bg-white">
                 <button onClick={handleSubmit} disabled={uploading} className="w-full py-3.5 bg-primary-600 text-white font-bold text-sm rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-200 transition-transform active:scale-95 disabled:opacity-50">
-                    {uploading ? 'Uploading Image...' : 'Publish Event'}
+                    {uploading ? 'Uploading Image...' : (editingEventId ? 'Save Changes' : 'Publish Event')}
                 </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* PARTICIPANT MODAL */}
       {participantModal && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setParticipantModal(null)}></div>
@@ -197,6 +266,35 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
             </div>
           </div>
       )}
+
+      {/* NEW: REVIEWS MODAL */}
+      {reviewsModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setReviewsModal(null)}></div>
+            <div className="bg-white w-full h-[80vh] sm:h-[80vh] sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col relative z-10">
+                <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                    <div><h3 className="font-bold text-lg text-slate-900">Student Reviews</h3><p className="text-xs text-slate-500">{reviewsModal.eventTitle}</p></div>
+                    <button onClick={() => setReviewsModal(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                    {currentReviews.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400"><p>No reviews yet.</p></div>
+                    ) : (
+                        currentReviews.map((review) => (
+                            <div key={review.eventId + review.userId} className="p-4 border border-slate-200/60 rounded-2xl bg-white shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="text-xs font-bold text-slate-400">Student Feedback</div>
+                                    <div className="flex text-yellow-400 text-sm">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</div>
+                                </div>
+                                <p className="text-slate-700 text-sm italic">"{review.comment}"</p>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+          </div>
+      )}
+
     </div>
   );
 };

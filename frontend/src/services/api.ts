@@ -123,4 +123,9 @@ export const submitFeedback = async (data: { eventId: string; userId: string; ra
   await api.post('/feedbacks', data);
 };
 
+// Add this function near createEvent
+export const updateEvent = async (eventId: string, eventData: Partial<Event>): Promise<Event> => {
+  const { data } = await api.put(`/events/${eventId}`, eventData);
+  return data;
+};
 export default api;
