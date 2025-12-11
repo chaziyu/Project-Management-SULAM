@@ -11,7 +11,9 @@ from database import engine, get_session
 from auth import get_current_user
 from models import (
     Event, Registration, Feedback, Bookmark, 
-    BookmarkRequest, JoinRequest, UpdateStatusRequest
+    BookmarkRequest, JoinRequest, 
+    UpdateEventStatusRequest, UpdateRegistrationStatusRequest,
+    RegistrationStatus
 )
 
 # --- Lifespan (Startup/Shutdown) ---
@@ -59,7 +61,7 @@ async def health_check():
 @app.get("/events", response_model=List[Event])
 async def get_events(
     organizerId: Optional[str] = None, 
-    status: Optional[str] = None,  # <--- NEW: Filter by status
+    status: Optional[str] = None, 
     session: Session = Depends(get_session)
 ):
     """Fetch all events, optionally filtered by organizer or status."""
@@ -67,7 +69,7 @@ async def get_events(
     if organizerId:
         query = query.where(Event.organizerId == organizerId)
     if status:
-        query = query.where(Event.status == status) # <--- NEW: Apply filter
+        query = query.where(Event.status == status)
     return session.exec(query).all()
 
 @app.post("/events", response_model=Event)
@@ -89,7 +91,7 @@ async def create_event(
 @app.patch("/events/{event_id}", response_model=Event)
 async def update_event_status(
     event_id: str, 
-    payload: UpdateStatusRequest, # Used typed model instead of generic dict
+    payload: UpdateEventStatusRequest, # Updated for validation
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
@@ -98,7 +100,6 @@ async def update_event_status(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Only the organizer can update
     if event.organizerId != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -116,7 +117,6 @@ async def join_event(
     current_user: dict = Depends(get_current_user)
 ):
     """Register a user for an event."""
-    # Prevent joining on behalf of others
     if payload.userId != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Cannot join for another user")
 
@@ -124,7 +124,6 @@ async def join_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    # Check for existing registration
     existing_reg = session.exec(select(Registration).where(
         Registration.eventId == event_id, 
         Registration.userId == payload.userId
@@ -140,14 +139,13 @@ async def join_event(
         joinedAt=datetime.date.today().isoformat(),
         userName=payload.userName or f"Student {payload.userId[-4:]}", 
         userAvatar=payload.userAvatar or "",
-        status="pending"
+        status=RegistrationStatus.PENDING 
     )
     
-    # Pending users count towards capacity in this logic
-    event.currentVolunteers += 1
+    # FIXED: We do NOT increment currentVolunteers here. 
+    # Only confirmed users count towards the quota.
     
     session.add(new_reg)
-    session.add(event)
     session.commit()
     session.refresh(new_reg)
     return new_reg
@@ -166,7 +164,7 @@ async def get_event_registrations(
 @app.patch("/registrations/{registration_id}")
 async def update_registration_status(
     registration_id: str, 
-    payload: UpdateStatusRequest, 
+    payload: UpdateRegistrationStatusRequest, # Updated for validation
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
@@ -175,34 +173,28 @@ async def update_registration_status(
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
     
-    # --- SECURITY FIX START ---
-    # Fetch the event to check ownership
     event = session.get(Event, reg.eventId)
     if not event:
          raise HTTPException(status_code=404, detail="Associated event not found")
          
-    # Check if the requester is the organizer
     if event.organizerId != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Only the organizer can manage volunteers")
-    # --- SECURITY FIX END ---
     
     old_status = reg.status
     new_status = payload.status
-    reg.status = new_status
     
-    # Update event headcount based on status change
-    # If rejecting someone who was previously counted (pending/confirmed)
-    if new_status == 'rejected' and old_status != 'rejected':
-        # We already have 'event' loaded from the security check above
-        event.currentVolunteers = max(0, event.currentVolunteers - 1)
-        session.add(event)
-            
-    # If re-approving someone who was rejected
-    elif old_status == 'rejected' and new_status != 'rejected':
-        # We already have 'event' loaded from the security check above
+    # FIXED: Logic to update count only when CONFIRMED
+    if new_status == RegistrationStatus.CONFIRMED and old_status != RegistrationStatus.CONFIRMED:
+        # User is being confirmed -> Increment count
         event.currentVolunteers += 1
         session.add(event)
+            
+    elif old_status == RegistrationStatus.CONFIRMED and new_status != RegistrationStatus.CONFIRMED:
+        # User was confirmed but is now rejected/pending -> Decrement count
+        event.currentVolunteers = max(0, event.currentVolunteers - 1)
+        session.add(event)
 
+    reg.status = new_status
     session.add(reg)
     session.commit()
     session.refresh(reg)
@@ -220,12 +212,10 @@ async def get_user_registrations(
 
     regs = session.exec(select(Registration).where(Registration.userId == user_id)).all()
     
-    # Enrich response with Event details
     enriched_regs = []
     for r in regs:
         event = session.get(Event, r.eventId)
         
-        # Check if user has already left feedback for this event
         has_feedback = session.exec(select(Feedback).where(
             Feedback.eventId == r.eventId, Feedback.userId == user_id
         )).first() is not None
@@ -233,7 +223,8 @@ async def get_user_registrations(
         reg_dict = r.model_dump()
         if event:
             reg_dict["eventTitle"] = event.title
-            reg_dict["eventDate"] = event.date
+            # Note: event.date is now a 'date' object, Pydantic handles serialization to JSON
+            reg_dict["eventDate"] = event.date 
             reg_dict["eventStatus"] = event.status
         reg_dict["hasFeedback"] = has_feedback
         enriched_regs.append(reg_dict)
@@ -308,7 +299,6 @@ async def toggle_bookmark(
         
     session.commit()
     
-    # Return updated list of bookmark IDs
     bookmarks = session.exec(select(Bookmark).where(Bookmark.userId == user_id)).all()
     return [b.eventId for b in bookmarks]
 
