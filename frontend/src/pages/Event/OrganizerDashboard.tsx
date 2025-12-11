@@ -5,8 +5,8 @@ import {
   getFeedbacks, getEventRegistrations, updateRegistrationStatus 
 } from '../../services/api';
 
-interface Props { user: User; }
-interface EventWithStats extends Event { avgRating?: number; feedbackCount?: number; }
+interfaceHN_Props { user: User; }
+interface EventWithStats extendsHN_Event { avgRating?: number; feedbackCount?: number; }
 
 export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const [events, setEvents] = useState<EventWithStats[]>([]);
@@ -56,8 +56,8 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           let width = img.width;
           let height = img.height;
           
-          // FIX: Reduce max width to 400px to save DB space
-          constHZ_WIDTH = 400; 
+          // FIX 1: Corrected syntax error (added space after const)
+          const HZ_WIDTH = 400; 
           
           if (width > HZ_WIDTH) { 
             height *= HZ_WIDTH / width; 
@@ -69,7 +69,6 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
           
-          // FIX: Reduce JPEG quality to 0.6
           const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           setFormData({ ...formData, imageUrl: dataUrl });
         };
@@ -89,15 +88,26 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   const handleConclude = async (eventId: string) => {
     if (confirm('Conclude event?')) {
-      await updateEventStatus(eventId, 'completed');
-      fetchEvents();
+      // FIX 2: Added error handling to catch permission issues or failures
+      try {
+        await updateEventStatus(eventId, 'completed');
+        fetchEvents();
+      } catch (error: any) {
+        console.error(error);
+        alert(error.response?.data?.detail || "Failed to conclude event");
+      }
     }
   };
 
   const handleParticipantAction = async (registrationId: string, action: 'confirmed' | 'rejected', eventId: string) => {
-      await updateRegistrationStatus(registrationId, action);
-      fetchParticipants(eventId);
-      fetchEvents();
+      // FIX 3: Added 'await' to ensure lists refresh before UI updates, solving the "sometimes empty" bug
+      try {
+        await updateRegistrationStatus(registrationId, action);
+        await fetchParticipants(eventId);
+        await fetchEvents();
+      } catch (error) {
+        console.error("Failed to update participant status", error);
+      }
   };
 
   const filteredEvents = events.filter(e => e.status === activeTab);
