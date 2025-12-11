@@ -1,11 +1,11 @@
 import uuid
 from typing import Optional
-from datetime import date  # <--- NEW IMPORT
-from enum import Enum      # <--- NEW IMPORT
+from datetime import date
+from enum import Enum
 from sqlmodel import SQLModel, Field
 
 # ==========================================
-# Enums (For Validation - Part C)
+# Enums (For Validation)
 # ==========================================
 
 class EventStatus(str, Enum):
@@ -18,13 +18,13 @@ class RegistrationStatus(str, Enum):
     REJECTED = "rejected"
 
 # ==========================================
-# Database Tables
+# Database Tables (Stored in DB)
 # ==========================================
 
 class Event(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     title: str
-    date: date  # <--- FIXED (Part B): Used specific date type
+    date: date  # <--- FIXED: Used specific date type
     location: str
     category: str
     maxVolunteers: int
@@ -57,7 +57,7 @@ class Bookmark(SQLModel, table=True):
     eventId: str = Field(index=True)
 
 # ==========================================
-# Request Models
+# Request Models (Body payloads)
 # ==========================================
 
 class BookmarkRequest(SQLModel):
@@ -68,7 +68,7 @@ class JoinRequest(SQLModel):
     userName: Optional[str] = "Student"
     userAvatar: Optional[str] = ""
 
-# NEW: Specific models for validation (Part C)
+# NEW: Specific models for validation
 class UpdateEventStatusRequest(SQLModel):
     status: EventStatus
 
