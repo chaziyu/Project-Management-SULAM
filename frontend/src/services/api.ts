@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Event, Registration,HX_Badge, Feedback } from '../types';
+import { Event, Registration, Badge, Feedback } from '../types';
 
 // 1. Setup Axios Client
 const api = axios.create({
@@ -80,9 +80,7 @@ export const toggleBookmark = async (userId: string, eventId: string): Promise<s
   return data;
 };
 
-// NOTE: You used Badge in your code, but in imports sometimes it is HX_Badge or similar. 
-// Assuming Badge is correctly exported from types.
-export const getUserBadges = async (userId: string): Promise<any[]> => {
+export const getUserBadges = async (userId: string): Promise<Badge[]> => {
   const { data } = await api.get(`/users/${userId}/badges`);
   return data;
 };
@@ -96,7 +94,7 @@ export const getEventAverageRating = async (eventId: string): Promise<number> =>
   return data.average;
 };
 
-// FIXED: Changed Promise<any[]> to Promise<Feedback[]> for type safety
+// FIXED: Changed Promise<any[]> to Promise<Feedback[]> for strict typing
 export const getFeedbacks = async (userId?: string, eventId?: string): Promise<Feedback[]> => {
   const params = new URLSearchParams();
   if (userId) params.append('userId', userId);
