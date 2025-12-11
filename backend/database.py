@@ -1,20 +1,18 @@
 from sqlmodel import create_engine, Session
 from config import settings
 
-connection_string = settings.DATABASE_URL
-
-if not connection_string:
+# Validate presence of DB URL
+if not settings.DATABASE_URL:
     raise ValueError("DATABASE_URL is not set in .env file")
 
-# SQLAlchemy requires 'postgresql://', but Supabase sometimes gives 'postgres://'
-if connection_string.startswith("postgres://"):
-    connection_string = connection_string.replace("postgres://", "postgresql://", 1)
+# 1. Fix Protocol: SQLAlchemy needs 'postgresql://', but some providers (Supabase) give 'postgres://'
+connection_string = settings.DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Enable connection keepalives to prevent timeouts on the cloud
+# 2. Engine Creation: Includes settings to keep connections alive (essential for cloud deployments)
 engine = create_engine(
     connection_string,
-    pool_pre_ping=True, 
-    echo=settings.DEBUG,
+    pool_pre_ping=True,  # Checks connection health before use
+    echo=settings.DEBUG, # Logs SQL queries if DEBUG is True
     connect_args={
         "keepalives": 1,
         "keepalives_idle": 30,
@@ -24,5 +22,6 @@ engine = create_engine(
 )
 
 def get_session():
+    """Dependency to provide a database session for a request."""
     with Session(engine) as session:
         yield session

@@ -1,16 +1,20 @@
 from sqlmodel import SQLModel
 from database import engine
-# Import all models so SQLModel knows what to drop
+# Import all models to ensure SQLModel detects them
 from models import Event, Registration, Feedback, Bookmark
 
 def wipe_database():
+    """
+    DANGER: Drops all tables and recreates them.
+    Used for resetting the dev environment.
+    """
     print("🗑️  Wiping database...")
     try:
-        # This creates a transaction to drop everything safely
+        # 1. Drop all tables
         SQLModel.metadata.drop_all(engine)
         print("✅ Tables dropped successfully.")
         
-        # Verify it's clean by trying to create tables immediately
+        # 2. Recreate them fresh
         SQLModel.metadata.create_all(engine)
         print("✅ Tables recreated successfully.")
         

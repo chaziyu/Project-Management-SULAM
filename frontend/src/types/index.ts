@@ -1,8 +1,10 @@
+// Enums for rigid values
 export enum UserRole {
   VOLUNTEER = 'volunteer',
   ORGANIZER = 'organizer'
 }
 
+// Domain Entities
 export interface User {
   id: string;
   name: string;
@@ -34,13 +36,13 @@ export interface Registration {
   status: 'pending' | 'confirmed' | 'rejected';
   joinedAt: string;
   
-  // Enriched fields for Dashboards
+  // Flattened fields for easy display in tables/cards
   eventTitle?: string;
   eventDate?: string;
   eventStatus?: string;
   hasFeedback?: boolean;
   
-  // For Organizer Dashboard
+  // Organizer view fields
   userName?: string;
   userAvatar?: string;
 }

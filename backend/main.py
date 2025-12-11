@@ -1,24 +1,29 @@
+import datetime
+from typing import List, Optional
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from sqlmodel import Session, select
-from typing import List, Optional
-import datetime
+from sqlmodel import Session, select, SQLModel
 
 from config import settings
 from database import engine, get_session
-from models import Event, Registration, Feedback, Bookmark, BookmarkRequest, JoinRequest
 from auth import get_current_user
+from models import (
+    Event, Registration, Feedback, Bookmark, 
+    BookmarkRequest, JoinRequest, UpdateStatusRequest
+)
 
+# --- Lifespan (Startup/Shutdown) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"Starting {settings.APP_NAME}...")
-    from sqlmodel import SQLModel
-    # This creates the tables in Supabase if they don't exist
+    print(f"🚀 Starting {settings.APP_NAME}...")
+    # Automatically create tables if they don't exist
     SQLModel.metadata.create_all(engine)
     yield
-    print("Shutting down...")
+    print("🛑 Shutting down...")
 
+# --- App Setup ---
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
@@ -33,45 +38,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ENDPOINTS ---
+# ==========================================
+# Endpoints
+# ==========================================
 
 @app.get("/")
 async def root():
-    return {"message": "API is running!", "version": settings.VERSION}
+    return {
+        "message": "API is running!", 
+        "version": settings.VERSION,
+        "docs_url": "/docs"
+    }
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-# EVENTS
+# --- EVENTS ---
+
 @app.get("/events", response_model=List[Event])
-async def get_events(organizerId: Optional[str] = None, session: Session = Depends(get_session)):
+async def get_events(
+    organizerId: Optional[str] = None, 
+    session: Session = Depends(get_session)
+):
+    """Fetch all events, optionally filtered by organizer."""
     query = select(Event)
     if organizerId:
         query = query.where(Event.organizerId == organizerId)
     return session.exec(query).all()
 
 @app.post("/events", response_model=Event)
-@app.post("/events", response_model=Event)
 async def create_event(
     event: Event, 
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    # SECURITY FIX: Validate user ID match
+    """Create a new event. Requires Auth."""
+    # Ensure the creator is assigning the event to themselves
     if event.organizerId != current_user.get("sub"):
          raise HTTPException(status_code=403, detail="User ID mismatch")
     
-    # SECURITY FIX: Enforce Role/Domain Check
-    # Since we can't fully trust metadata from the frontend, we check the email if available.
-    # Note: You might need to adjust this depending on what Clerk returns in the token claims.
-    # For now, we will assume a valid Organizer must have a specific domain or ID.
-    
-    # Example: Only allow emails ending in @um.edu.my (Uncomment if email is in token)
-    # user_email = current_user.get("email", "")
-    # if not user_email.endswith("@um.edu.my"):
-    #     raise HTTPException(status_code=403, detail="Only university emails can create events")
-
     session.add(event)
     session.commit()
     session.refresh(event)
@@ -80,21 +86,23 @@ async def create_event(
 @app.patch("/events/{event_id}", response_model=Event)
 async def update_event_status(
     event_id: str, 
-    payload: dict, 
+    payload: UpdateStatusRequest, # Used typed model instead of generic dict
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """Update event status (e.g. to 'completed')."""
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Only the organizer can update
     if event.organizerId != current_user.get("sub"):
-        print(f"DEBUG 403: Event orgId {event.organizerId} != Token sub {current_user.get('sub')}")
         raise HTTPException(status_code=403, detail="Not authorized")
-    if "status" in payload:
-        event.status = payload["status"]
-        session.add(event)
-        session.commit()
-        session.refresh(event)
+    
+    event.status = payload.status
+    session.add(event)
+    session.commit()
+    session.refresh(event)
     return event
 
 @app.post("/events/{event_id}/join")
@@ -104,14 +112,16 @@ async def join_event(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """Register a user for an event."""
+    # Prevent joining on behalf of others
     if payload.userId != current_user.get("sub"):
-        print(f"DEBUG 403: Payload userId {payload.userId} != Token sub {current_user.get('sub')}")
         raise HTTPException(status_code=403, detail="Cannot join for another user")
 
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    # Check for existing registration
     existing_reg = session.exec(select(Registration).where(
         Registration.eventId == event_id, 
         Registration.userId == payload.userId
@@ -120,6 +130,7 @@ async def join_event(
     if existing_reg:
         raise HTTPException(status_code=400, detail="Already joined")
     
+    # Create registration
     new_reg = Registration(
         eventId=event_id,
         userId=payload.userId,
@@ -128,42 +139,52 @@ async def join_event(
         userAvatar=payload.userAvatar or "",
         status="pending"
     )
+    
+    # Pending users count towards capacity in this logic
     event.currentVolunteers += 1
+    
     session.add(new_reg)
     session.add(event)
     session.commit()
     session.refresh(new_reg)
     return new_reg
 
-# REGISTRATIONS
+# --- REGISTRATIONS ---
+
 @app.get("/events/{event_id}/registrations")
 async def get_event_registrations(
     event_id: str, 
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """Get all participants for a specific event."""
     return session.exec(select(Registration).where(Registration.eventId == event_id)).all()
 
 @app.patch("/registrations/{registration_id}")
 async def update_registration_status(
     registration_id: str, 
-    payload: dict, 
+    payload: UpdateStatusRequest, 
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """Approve or Reject a volunteer."""
     reg = session.get(Registration, registration_id)
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
     
     old_status = reg.status
-    new_status = payload.get("status", reg.status)
+    new_status = payload.status
     reg.status = new_status
     
+    # Update event headcount based on status change
+    # If rejecting someone who was previously counted (pending/confirmed)
     if new_status == 'rejected' and old_status != 'rejected':
         event = session.get(Event, reg.eventId)
         if event:
             event.currentVolunteers = max(0, event.currentVolunteers - 1)
             session.add(event)
+            
+    # If re-approving someone who was rejected
     elif old_status == 'rejected' and new_status != 'rejected':
         event = session.get(Event, reg.eventId)
         if event:
@@ -181,18 +202,22 @@ async def get_user_registrations(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    # SECURITY CHECK
+    """Get all events a user has joined."""
     if user_id != current_user.get("sub"):
-        print(f"DEBUG 403: URL userId {user_id} != Token sub {current_user.get('sub')}")
         raise HTTPException(status_code=403, detail="Access denied")
 
     regs = session.exec(select(Registration).where(Registration.userId == user_id)).all()
+    
+    # Enrich response with Event details
     enriched_regs = []
     for r in regs:
         event = session.get(Event, r.eventId)
+        
+        # Check if user has already left feedback for this event
         has_feedback = session.exec(select(Feedback).where(
             Feedback.eventId == r.eventId, Feedback.userId == user_id
         )).first() is not None
+        
         reg_dict = r.model_dump()
         if event:
             reg_dict["eventTitle"] = event.title
@@ -200,18 +225,27 @@ async def get_user_registrations(
             reg_dict["eventStatus"] = event.status
         reg_dict["hasFeedback"] = has_feedback
         enriched_regs.append(reg_dict)
+        
     return enriched_regs
 
-# FEEDBACK & BOOKMARKS
+# --- FEEDBACK & UTILS ---
+
 @app.get("/events/{event_id}/rating")
 async def get_event_rating(event_id: str, session: Session = Depends(get_session)):
+    """Calculate average star rating for an event."""
     feedbacks = session.exec(select(Feedback).where(Feedback.eventId == event_id)).all()
-    if not feedbacks: return {"average": 0}
+    if not feedbacks: 
+        return {"average": 0}
     avg = sum(f.rating for f in feedbacks) / len(feedbacks)
     return {"average": round(avg, 1)}
 
 @app.get("/feedbacks")
-async def get_feedbacks(userId: Optional[str] = None, eventId: Optional[str] = None, session: Session = Depends(get_session)):
+async def get_feedbacks(
+    userId: Optional[str] = None, 
+    eventId: Optional[str] = None, 
+    session: Session = Depends(get_session)
+):
+    """Filter feedbacks by user or event."""
     query = select(Feedback)
     if userId: query = query.where(Feedback.userId == userId)
     if eventId: query = query.where(Feedback.eventId == eventId)
@@ -224,7 +258,6 @@ async def submit_feedback(
     current_user: dict = Depends(get_current_user)
 ):
     if feedback.userId != current_user.get("sub"):
-        print(f"DEBUG 403: Feedback userId {feedback.userId} != Token sub {current_user.get('sub')}")
         raise HTTPException(status_code=403, detail="Cannot submit feedback for another user")
     session.add(feedback)
     session.commit()
@@ -236,10 +269,9 @@ async def get_user_bookmarks(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    # SECURITY CHECK
     if user_id != current_user.get("sub"):
-         print(f"DEBUG 403: URL userId {user_id} != Token sub {current_user.get('sub')}")
          raise HTTPException(status_code=403, detail="Access denied")
+    
     bookmarks = session.exec(select(Bookmark).where(Bookmark.userId == user_id)).all()
     return [b.eventId for b in bookmarks]
 
@@ -250,23 +282,27 @@ async def toggle_bookmark(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    # SECURITY CHECK
     if user_id != current_user.get("sub"):
-         print(f"DEBUG 403: URL userId {user_id} != Token sub {current_user.get('sub')}")
          raise HTTPException(status_code=403, detail="Access denied")
+         
     existing = session.exec(select(Bookmark).where(
         Bookmark.userId == user_id, Bookmark.eventId == body.eventId
     )).first()
+    
     if existing:
         session.delete(existing)
     else:
         session.add(Bookmark(userId=user_id, eventId=body.eventId))
+        
     session.commit()
+    
+    # Return updated list of bookmark IDs
     bookmarks = session.exec(select(Bookmark).where(Bookmark.userId == user_id)).all()
     return [b.eventId for b in bookmarks]
 
 @app.get("/users/{user_id}/badges")
 async def get_user_badges(user_id: str):
+    """Static mock badges for demo purposes."""
     return [{
         "id": "1",
         "name": "First Step",

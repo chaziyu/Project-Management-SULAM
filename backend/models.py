@@ -1,9 +1,10 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
-import datetime
 import uuid
+from typing import Optional
+from sqlmodel import SQLModel, Field
 
-# --- DATABASE TABLES ---
+# ==========================================
+# Database Tables (Stored in DB)
+# ==========================================
 
 class Event(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
@@ -17,13 +18,13 @@ class Event(SQLModel, table=True):
     organizerId: str
     organizerName: str
     imageUrl: Optional[str] = None
-    status: str = Field(default="upcoming")
+    status: str = Field(default="upcoming") # 'upcoming', 'completed'
 
 class Registration(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     eventId: str = Field(index=True)
     userId: str = Field(index=True)
-    status: str = Field(default="pending")
+    status: str = Field(default="pending") # 'pending', 'confirmed', 'rejected'
     joinedAt: str
     userName: Optional[str] = "Student Volunteer"
     userAvatar: Optional[str] = None
@@ -40,7 +41,9 @@ class Bookmark(SQLModel, table=True):
     userId: str = Field(index=True)
     eventId: str = Field(index=True)
 
-# --- REQUEST MODELS ---
+# ==========================================
+# Request Models (Body payloads)
+# ==========================================
 
 class BookmarkRequest(SQLModel):
     eventId: str
@@ -49,3 +52,7 @@ class JoinRequest(SQLModel):
     userId: str
     userName: Optional[str] = "Student"
     userAvatar: Optional[str] = ""
+
+class UpdateStatusRequest(SQLModel):
+    """Used for patching status on Events or Registrations"""
+    status: str
