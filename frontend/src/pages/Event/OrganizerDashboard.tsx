@@ -239,7 +239,13 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           {filteredEvents.map((event) => (
             <div key={event.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-6">
 
-              {/* Event Info Card */}
+              {/* Event Image (Thumbnail) */}
+              {event.imageUrl && (
+                <div className="w-full lg:w-48 h-32 lg:h-auto rounded-xl overflow-hidden mb-4 lg:mb-0 lg:mr-6 flex-shrink-0 border border-slate-100 relative">
+                  <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[10px] font-bold text-primary-700 bg-primary-50 px-2 py-1 rounded-md uppercase tracking-wider">{event.category}</span>
