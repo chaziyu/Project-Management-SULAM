@@ -1,309 +1,0 @@
-Simplfy Process
-UMission App: Program Flow Snapshot
-1. The Setup (Initialization)
-? User Opens App: The website loads (Frontend).
-? Security Check: The app immediately connects to Clerk to verify who the user is.
-? Digital ID: If logged in, the user gets a secure Token (Digital ID Badge). This token is attached to every single click or request they make, so the system always knows "Who is asking?"
-
-2. The Student Flow (Volunteer)
-1. View Feed: The Student opens the "Campus Bulletin."
-? System: Frontend asks Backend for "Upcoming Events." Backend reads the Database and sends the list back.
-2. Join Event: The Student clicks "Join".
-? System: A request travels to the Backend: "Student ID 123 wants to join Event A."
-? Check: Backend confirms they haven't already joined.
-? Result: Backend saves the registration as "Pending" in the Database.
-3. Track Progress:
-? System: The Backend counts completed events. If a student finishes 5 events, the system automatically unlocks the "Super Star" Badge on their profile.
-
-3. The Organizer Flow (Admin)
-1. Create Event: The Admin fills out a form (Title, Date, Description).
-? Image Upload: The banner image is sent directly from the browser to Supabase Storage (Cloud). The Cloud returns a public link.
-? Save Data: The Admin submits the form + the image link to the Backend to be saved.
-2. Manage Volunteers: The Admin sees a list of pending students.
-? Action: Admin clicks "Approve".
-? Safety Lock: The Backend freezes the event for a millisecond, checks if seats are available (Current < Max), and only then confirms the student.
-? Update: The "Current Volunteers" count increases by +1.
-
-4. The "Engine Room" (Behind the Scenes)
-This cycle happens every time a user clicks a button:
-1. Frontend (The Interface): Captures the click.
-2. Axios (The Messenger): Carries the data + User Token to the server.
-3. FastAPI (The Brain):
-? Verifies the Token (Security).
-? Runs the Logic (e.g., "Is the event full?").
-? Talks to PostgreSQL (The Database) to save/retrieve data.
-4. Database (The Memory): Stores the permanent records (Users, Events, Registrations).
-5. Response: The data travels back up the chain, and the Frontend updates the screen instantly.
-
-Feature
-1. For Students (Volunteers)
-? The Discovery Feed:
-? Browse: You can scroll through a list of all upcoming campus events.
-? Filter & Search: If you only want "Outdoor" events or are looking for a specific club, you can type or click a category button to find it instantly.
-? One-Click Join:
-? See an event you like? Click "Join Event".
-? The request is sent immediately to the organizer for approval.
-? Student ID Dashboard:
-? Digital Profile: You have a personal dashboard that looks like a student ID card. It shows your name, email, and photo.
-? Merit Tracker: Every time you complete an event, the system adds 5 Merit Stars to your profile automatically.
-? Badges: If you complete enough events (like 1, 3, or 5), the system unlocks shiny "Achievement Badges" (e.g., "Super Star") to show off your hard work.
-? Feedback: After an event is finished, you can rate it (1-5 stars) and leave a comment to let the club know how it went.
-
-2. For Organizers (Club Admins)
-? Event Creation:
-? Easy Setup: You fill out a simple form with the Title, Date, Location, and Description.
-? Banner Upload: You can upload a custom picture (poster) for your event. The app saves this directly to the cloud so it loads fast for everyone.
-? Volunteer Control:
-? Approve/Reject: You see a list of every student who wants to join. You simply click "Approve" or "Reject".
-? Quota Safety: The system stops you from approving too many people. If you set a limit of 20 volunteers, it won't let the 21st person join.
-? History & Reviews:
-? You can look back at past events to see how many people showed up.
-? You can read the feedback and star ratings left by students to improve your future activities.
-
-3. Security & Access
-? Secure Login: Everyone logs in securely using their email. The app checks if you are a real user before letting you in.
-? Role Protection: A student cannot accidentally see the "Admin Panel," and an admin cannot accidentally join events as a volunteer. The app keeps these two worlds separate.
-Technical Documentation
-UMission - Technical Documentation
-1. System Architecture Overview
-Architecture Pattern: Client-Server (Decoupled Monolith Backend + SPA Frontend)
-Deployment Strategy: Frontend on Vercel (presumed), Backend on Python-supported host (e.g., Railway/Render), Database on Supabase.
-ComponentTechnologyDescriptionFrontendReact 19, Vite, TypeScriptSingle Page Application (SPA) for user interface.StylingTailwind CSS v4Utility-first CSS framework for responsive design.BackendFastAPI (Python 3.10+)High-performance ASGI web API.DatabasePostgreSQL (via SQLModel)Relational database storage.Auth ProviderClerkIdentity Management (JWT issuance, User Management).Object StorageSupabase StorageS3-compatible storage for event banner images.
-2. Frontend Specifications
-2.1 Core Dependencies
-? Runtime: React 19 + ReactDOM 19
-? Build Tool: Vite
-? Routing: React Router DOM v7 (Client-side routing)
-? HTTP Client: Axios (Interceptors configured for Bearer Auth)
-? UI Components: Radix UI primitives (Dialog, Tabs, Avatar) + Lucide React (Icons)
-2.2 Directory Structure
-? src/services/: API layer. api.ts manages backend communication; supabaseClient.ts manages direct storage interactions.
-? src/pages/Event/: Domain-specific views (EventFeed, OrganizerDashboard, VolunteerDashboard).
-? src/hooks/: Custom logic, primarily useUserRole.ts for extracting claims from Clerk metadata.
-2.3 Authentication Flow (Client-Side)
-1. Initialization: ClerkProvider wraps the app in main.tsx using VITE_CLERK_PUBLISHABLE_KEY.
-2. Token Injection: In App.tsx, setupAxiosInterceptors is called with Clerk's getToken. This creates a dynamic interceptor that refreshes and attaches the Authorization: Bearer <jwt> header to every outgoing Axios request.
-3. Role Management: The useUserRole hook decodes the unsafeMetadata from the Clerk user object to determine if the user is a volunteer or organizer.
-
-3. Backend Specifications
-3.1 Framework & Middleware
-? Server: Uvicorn (ASGI).
-? API Framework: FastAPI.
-? CORS: Configured to allow origins defined in CORS_ORIGINS (default: localhost:5173, localhost:3000).
-3.2 Authentication & Security (Server-Side)
-? Mechanism: Bearer Token (JWT).
-? Validation (auth.py):
-? Middleware fetches JWKS (JSON Web Key Set) from CLERK_ISSUER URL.
-? Decodes the JWT header to find the Key ID (kid).
-? Verifies the signature using RSA256.
-? Authorization: The is_organizer function inspects unsafe_metadata in the token payload to enforce RBAC (Role-Based Access Control) for sensitive endpoints.
-3.3 Concurrency Control
-? Issue: Preventing over-subscription to events (Race Condition).
-? Solution: In PATCH /registrations/{id}, the backend uses with_for_update() on the Event row.
-? session.exec(select(Event)...with_for_update())
-? This applies a database-level row lock, ensuring strictly serialized transactions when checking currentVolunteers < maxVolunteers before incrementing the counter.
-
-4. Data Models (Schema)
-Defined in backend/models.py using SQLModel (Pydantic + SQLAlchemy).
-4.1 Event Table
-FieldTypeConstraintsDescriptionidUUIDPKUnique Event IDtitleStringNot NullEvent NameorganizerIdStringIndexClerk User ID of the creatormaxVolunteersIntNot NullCapacity limitcurrentVolunteersIntDefault 0Counter for active confirmationsstatusEnumupcoming, completedLifecycle state4.2 Registration Table
-FieldTypeConstraintsDescriptionidUUIDPKRegistration IDeventIdUUIDFK (Index)Link to EventuserIdStringIndexClerk User ID of volunteerstatusEnumpending, confirmed, rejectedApproval state4.3 Feedback Table
-FieldTypeDescriptioneventIdUUIDLinked EventuserIdStringReviewer IDratingInt1-5 Star ratingcommentStringText feedback
-5. API Endpoints Reference
-5.1 Events (/events)
-? GET /events: Supports pagination (skip, limit) and filtering (organizerId, status).
-? POST /events: Protected (Organizer). Creates new event. Forces organizerId from the auth token to prevent spoofing.
-? PUT /events/{id}: Protected (Organizer). Updates full event details. Includes check if db_event.organizerId != current_user.
-5.2 Registrations
-? POST /events/{id}/join: Creates PENDING registration. Validates user isn't already joined.
-? PATCH /registrations/{id}: Protected (Organizer). Transitions status (confirmed/rejected). Handles atomic counter updates for Event.currentVolunteers.
-5.3 Gamification (Dynamic)
-? GET /users/{user_id}/badges: No DB table. badges are calculated on-the-fly by counting Registration entries where status='confirmed' AND associated Event.status='completed'.
-? Logic: 1 Mission = "First Step", 3 Missions = "Helping Hand", 5 Missions = "Super Star".
-
-6. External Integrations
-6.1 Supabase Storage (Frontend Direct)
-? Purpose: Event Banner hosting.
-? Flow:
-1. User selects image in OrganizerDashboard.
-2. supabase.storage.from('event-banners').upload() is called directly from the browser.
-3. The returned public URL is sent to the backend as a string string (imageUrl).
-6.2 Clerk Authentication
-? Frontend: Handles UI components (<SignIn />, <UserButton />) and session management.
-? Backend: Acts as a stateless verifier. It does not store user passwords; it trusts the signed JWT from Clerk.
-
-7. Environment Configuration
-Frontend .env
-Bash
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...  # Auth identifier
-VITE_API_URL=http://localhost:8000       # Backend connection
-VITE_SUPABASE_URL=...                    # Storage bucket
-VITE_SUPABASE_ANON_KEY=...               # Storage public key
-
-Backend .env
-Bash
-DATABASE_URL=postgresql://user:pass@...  # Database connection string
-CLERK_ISSUER=https://...clerk.accounts.dev # URL for JWKS verification
-CORS_ORIGINS=http://localhost:5173,...   # Allowed frontend origins
-
-
-Read.me
-Here is the formatted version of the documentation, ready to be copied and pasted directly into a Google Doc.
-
-UMission - SULAM Volunteerism Platform
-UMission is a modern, gamified volunteerism platform designed to bridge the gap between student volunteers and club organizers. Built with a high-performance FastAPI backend and a reactive React 19 frontend, it features secure identity management via Clerk and cloud object storage via Supabase.
-Project Status: Development
-Tech Stack: FastAPI | React 19 | PostgreSQL
-
-1. Key Features
-For Students (Volunteers)
-? Digital ID Dashboard: A personalized dashboard featuring a dynamic student ID card that tracks merit points.
-? Gamification System: Automatically earn badges (e.g., "First Step", "Super Star") based on completed missions.
-? Smart Event Feed: Filter events by category (Education, Environment, etc.) or location (Residential Colleges, Faculties).
-? One-Click Registration: Seamlessly join events with instant status tracking (Pending/Confirmed).
-? Feedback Loop: Rate and review events after completion to help clubs improve.
-For Organizers (Club Admins)
-? Event Management: Create and edit events with rich details and tasks.
-? Banner Uploads: Drag-and-drop image uploads for event banners (powered by Supabase Storage).
-? Volunteer Command Center: Review applicants, approve/reject volunteers, and manage quotas with race-condition protection.
-? Analytics: View participant counts and read student feedback for completed events.
-
-2. Tech Stack
-Frontend (Client-Side)
-? Framework: React 19 + Vite
-? Language: TypeScript
-? Styling: Tailwind CSS v4 (Oxide engine) + Radix UI Primitives
-? State/Network: Axios (with Interceptors)
-? Authentication: Clerk React SDK
-? Storage: Supabase JS Client (Direct Image Uploads)
-? Icons: Lucide React
-Backend (Server-Side)
-? Framework: FastAPI (Python 3.10+)
-? Database ORM: SQLModel (Pydantic + SQLAlchemy)
-? Server: Uvicorn (ASGI)
-? Authentication: Python-Jose (JWT Verification with JWKS)
-? Database: PostgreSQL (via Supabase or Local)
-
-3. Prerequisites
-Ensure you have the following installed:
-? Python 3.10+
-? Node.js 18+ & npm
-? Git
-You will also need accounts for:
-? Clerk: For user authentication.
-? Supabase: For the PostgreSQL database and Storage bucket (images).
-
-4. Installation & Setup
-Step 1: Clone the Repository
-Bash
-git clone https://github.com/Jayden-Yong/Project-Management-SULAM.git
-cd Project-Management-SULAM
-
-Step 2: Backend Setup
-Navigate to the backend folder and set up the Python environment.
-Commands:
-Bash
-cd backend
-python -m venv venv
-
-# Activate Virtual Environment
-# Windows:
-.\venv\Scripts\Activate.ps1
-# Mac/Linux:
-source venv/bin/activate
-
-# Install Dependencies
-pip install -r requirements.txt
-
-Configuration (.env):
-Create a file named .env in the backend/ folder and paste the following:
-Ini, TOML
-# App Config
-APP_NAME=UMission Backend
-DEBUG=True
-ENVIRONMENT=development
-HOST=0.0.0.0
-PORT=8000
-
-# Security (CORS)
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-
-# Database (PostgreSQL Connection String)
-# Example: postgresql://user:pass@host:5432/db
-DATABASE_URL=your_supabase_postgres_connection_string
-
-# Auth (Clerk Issuer URL for JWT Verification)
-# Found in Clerk Dashboard -> API Keys -> Advanced -> ISSUER
-CLERK_ISSUER=https://your-clerk-issuer-url.clerk.accounts.dev
-
-Run the Server:
-Bash
-python main.py
-
-(Backend runs at http://localhost:8000)
-Step 3: Frontend Setup
-Open a new terminal window and navigate to the frontend folder.
-Commands:
-Bash
-cd frontend
-npm install
-
-Configuration (.env):
-Create a file named .env in the frontend/ folder and paste the following:
-Ini, TOML
-# Application
-VITE_APP_NAME=UMission
-VITE_APP_VERSION=1.0.0
-VITE_API_URL=http://localhost:8000
-
-# Clerk Auth (Publishable Key)
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_publishable_key
-
-# Supabase Storage (For Image Uploads)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-Run the Development Server:
-Bash
-npm run dev
-
-(Frontend runs at http://localhost:5173)
-
-5. Project Structure
-? backend/
-? main.py - API Entry Point & Routes
-? models.py - Database Schemas (Event, Registration, etc.)
-? auth.py - JWT Verification Logic
-? database.py - SQLModel Engine Setup
-? config.py - Environment Configuration
-? requirements.txt - Python Dependencies
-? frontend/
-? src/pages/Event/ - Feature Pages (Feed, Dashboards)
-? src/components/ - UI Components (Navbar, Cards)
-? src/services/ - API & Supabase Clients
-? src/hooks/ - Custom Hooks (useUserRole)
-? src/types/ - TypeScript Interfaces
-? src/routes/ - Router Configuration
-? src/App.tsx - Root Component (Auth Interceptors)
-? vite.config.js - Vite Config (Tailwind v4)
-
-6. API Reference
-MethodEndpointDescriptionAccessGET/eventsList all events (supports filtering).PublicPOST/eventsCreate a new event.OrganizerPOST/events/{id}/joinRegister for an event.UserPATCH/registrations/{id}Approve/Reject a volunteer.OrganizerGET/users/{id}/badgesGet gamification badges.UserPOST/feedbacksSubmit event review.User
-7. Troubleshooting
-1. "Missing VITE_CLERK_PUBLISHABLE_KEY" Error
-? Ensure you created the .env file in the frontend folder, not the root.
-? Restart the Vite server (npm run dev) after creating the file.
-2. Images not uploading
-? Check your Supabase Bucket policies. You must enable Public access for the event-banners bucket or set up proper RLS policies to allow authenticated users to upload.
-3. Database Connection Failed
-? Verify your DATABASE_URL in backend/.env. If using Supabase transaction pooler (port 6543), ensure you are using the correct password.
-? Ensure the connection string starts with postgresql:// (FastAPI/SQLAlchemy requires this).
-4. "Not Authorized" on Backend
-? Ensure your Clerk Frontend and Backend are using keys from the same Clerk instance.
-? Check that the CLERK_ISSUER in backend/.env matches the iss claim in your JWT.
-
-License
-This project is part of the SULAM group initiative at Universiti Malaya.
-
-Vercel App Link
-https://umissionweb.vercel.app/ 
