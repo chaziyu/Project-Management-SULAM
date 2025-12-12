@@ -254,6 +254,7 @@ npm run dev
 
   * Ensure your Clerk Frontend and Backend are using keys from the **same Clerk instance**.
   * Check that the `CLERK_ISSUER` in `backend/.env` matches the `iss` claim in your JWT.
+  * **Critical:** In Clerk Dashboard → **JWT Templates**, ensure you have a template named `default` that includes `{{user.unsafe_metadata}}` in the claims. The backend relies on this to read the user's role.
 
 -----
 
