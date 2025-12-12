@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Event, User, UserRole } from '../../types';
 import { getEvents, joinEvent, toggleBookmark, getUserBookmarks } from '../../services/api';
 
@@ -9,70 +9,70 @@ interface Props {
 
 export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
   const [events, setEvents] = useState<Event[]>([]);
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   // Filters
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Debounce Search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Interactive State
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [userBookmarks, setUserBookmarks] = useState<string[]>([]);
   const [bookmarkingId, setBookmarkingId] = useState<string | null>(null);
 
-  // 1. Initial Data Load
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        const [eventsData, bookmarksData] = await Promise.all([
-          getEvents('upcoming'),
-          user ? getUserBookmarks(user.id) : Promise.resolve([])
-        ]);
+  const LIMIT = 6;
+  const initialLoadDone = useRef(false);
 
-        // Sort: Soonest first
-        const sorted = eventsData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // 1. Load Events
+  const loadEvents = useCallback(async (isLoadMore = false) => {
+    if (isLoadMore) setLoadingMore(true);
+    else setLoading(true);
 
-        setEvents(sorted);
-        setFilteredEvents(sorted);
-        setUserBookmarks(bookmarksData as string[]);
-      } catch (e) {
-        console.error("Failed to load feed", e);
-      } finally {
-        setLoading(false);
+    try {
+      const skip = isLoadMore ? events.length : 0;
+
+      const [newEvents, bookmarksData] = await Promise.all([
+        getEvents('upcoming', categoryFilter, debouncedSearch, skip, LIMIT),
+        // Only fetch bookmarks on initial load or if user changed
+        (!isLoadMore && user) ? getUserBookmarks(user.id) : Promise.resolve(null)
+      ]);
+
+      if (bookmarksData) setUserBookmarks(bookmarksData as string[]);
+
+      if (isLoadMore) {
+        setEvents(prev => [...prev, ...newEvents]);
+      } else {
+        setEvents(newEvents);
       }
-    };
-    loadEvents();
-  }, [user]);
 
-  // 2. Filter Logic (Runs whenever filters change)
+      setHasMore(newEvents.length === LIMIT);
+    } catch (e) {
+      console.error("Failed to load feed", e);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [categoryFilter, debouncedSearch, user, events.length]); // Dependency on events.length is tricky for loadMore, usually handled by ref or passing value directly.
+
+  // 2. Initial & Filter Change Effect
   useEffect(() => {
-    let result = events;
-
-    // Category Filter
-    if (categoryFilter !== 'All') {
-      result = result.filter(e => e.category === categoryFilter);
-    }
-
-    // Location Filter (Keyword matching)
-    if (locationFilter !== 'All') {
-      const keywords: Record<string, string[]> = {
-        'KK': ['KK', 'College', 'Nazrin'],
-        'Faculty': ['FCSIT', 'Faculty', 'Block'],
-        'Outdoors': ['Tasik', 'Rimba']
-      };
-      const targets = keywords[locationFilter] || [];
-      result = result.filter(e => targets.some(k => e.location.includes(k)));
-    }
-
-    // Search Term
-    if (searchTerm) {
-      result = result.filter(e => e.title.toLowerCase().includes(searchTerm.toLowerCase()));
-    }
-
-    setFilteredEvents(result);
-  }, [categoryFilter, locationFilter, searchTerm, events]);
+    // Reset and load
+    setEvents([]);
+    setHasMore(true);
+    loadEvents(false);
+  }, [categoryFilter, debouncedSearch, user?.id]);
+  // Note: user.id added to reload if user logs in/out. 
+  // removed `loadEvents` from dep array to avoid loops, purely relying on filter changes.
 
   // 3. User Actions
   const handleJoin = async (eventId: string) => {
@@ -118,6 +118,21 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
       setBookmarkingId(null);
     }
   };
+
+  // 4. Client-side Location Filtering (applied after fetch)
+  // Since we fetch paginated data, applying client-side filter might hide all results.
+  // Ideally this should be backend, but for now we filter what we have.
+  const displayedEvents = events.filter(e => {
+    if (locationFilter === 'All') return true;
+    const keywords: Record<string, string[]> = {
+      'KK': ['KK', 'College', 'Nazrin'],
+      'Faculty': ['FCSIT', 'Faculty', 'Block'],
+      'Outdoors': ['Tasik', 'Rimba']
+    };
+    const targets = keywords[locationFilter] || [];
+    return targets.some(k => e.location.includes(k));
+  });
+
 
   // --- RENDER HELPERS ---
   const isOrganizer = user?.role === UserRole.ORGANIZER;
@@ -175,18 +190,18 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
       </div>
 
       {/* Event Cards */}
-      {loading ? (
+      {loading && events.length === 0 ? (
         <div className="space-y-6">
           {[1, 2, 3].map(i => <div key={i} className="h-48 bg-white rounded-2xl shadow-sm border border-slate-100 animate-pulse"></div>)}
         </div>
-      ) : filteredEvents.length === 0 ? (
+      ) : displayedEvents.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-slate-900 font-medium">No events found</p>
           <p className="text-slate-400 text-sm">Try adjusting your filters</p>
         </div>
       ) : (
         <div className="space-y-5">
-          {filteredEvents.map((event) => {
+          {displayedEvents.map((event) => {
             const isFull = event.currentVolunteers >= event.maxVolunteers;
             const isBookmarked = userBookmarks.includes(event.id);
             const isMyEvent = isOrganizer && user?.id === event.organizerId;
@@ -263,6 +278,19 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Load More Button */}
+      {displayedEvents.length > 0 && hasMore && (
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={() => loadEvents(true)}
+            disabled={loadingMore}
+            className="bg-white border text-slate-600 border-slate-200 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {loadingMore ? 'Loading...' : 'Load More Events'}
+          </button>
         </div>
       )}
     </div>

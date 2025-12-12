@@ -117,7 +117,9 @@ async def health_check():
 @app.get("/events", response_model=List[Event])
 async def get_events(
     organizerId: Optional[str] = None, 
-    status: Optional[str] = None, 
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    search: Optional[str] = None,
     skip: int = 0,    
     limit: int = 100, 
     session: Session = Depends(get_session)
@@ -130,6 +132,10 @@ async def get_events(
         query = query.where(Event.organizerId == organizerId)
     if status:
         query = query.where(Event.status == status)
+    if category and category != 'All':
+        query = query.where(Event.category == category)
+    if search:
+        query = query.where(col(Event.title).ilike(f"%{search}%"))
     
     query = query.offset(skip).limit(limit)
     return session.exec(query).all()

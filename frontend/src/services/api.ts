@@ -39,9 +39,22 @@ api.interceptors.request.use(async (config) => {
 // Events
 // ==========================================
 
-export const getEvents = async (status?: string): Promise<Event[]> => {
-  const query = status ? `?status=${status}` : '';
-  const { data } = await api.get(`/events${query}`);
+export const getEvents = async (
+  status?: string,
+  category?: string,
+  search?: string,
+  skip: number = 0,
+  limit: number = 100
+): Promise<Event[]> => {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (category && category !== 'All') params.append('category', category);
+  if (search) params.append('search', search);
+
+  params.append('skip', skip.toString());
+  params.append('limit', limit.toString());
+
+  const { data } = await api.get(`/events?${params.toString()}`);
   return data;
 };
 
