@@ -1,350 +1,153 @@
-# Project Management SULAM - Volunteerism App
+# Project Management SULAM - Volunteerism Platform
 
-A modern volunteerism platform built with FastAPI (Python) backend and React + Vite frontend, featuring Clerk authentication.
+![Project Status](https://img.shields.io/badge/Status-Active-success)
+![Tech Stack](https://img.shields.io/badge/Stack-FastAPI%20%7C%20React%20%7C%20SQLModel-blue)
 
-## Prerequisites
+A modern, high-performance volunteerism platform designed to connect students with community service opportunities. Built with a focus on **data integrity**, **concurrency safety**, and **real-time performance**, this application serves as a robust bridge between student volunteers and event organizers.
 
-Before you begin, ensure you have the following installed:
+---
 
-- **Python 3.10+** - [Download Python](https://www.python.org/downloads/)
-- **Node.js 18+** and npm - [Download Node.js](https://nodejs.org/)
-- **Git** - [Download Git](https://git-scm.com/)
-- **Clerk Account** - [Sign up at Clerk](https://clerk.com/) for authentication
+## 🏗️ System Architecture
 
-## First-Time Setup
+The application follows a clean **Client-Server Architecture**:
 
-### 1. Clone the Repository
+*   **Frontend (Client)**: Built with **React 19** and **TypeScript**, utilizing **Vite** for fast bundling. It handles user interactions, displays real-time dashboards, and manages state using React Hooks.
+*   **Backend (Server)**: Powered by **FastAPI** (Python), serving as a RESTful API. It handles business logic, database transactions, and data aggregation.
+*   **Database**: Uses **SQLite** (for development) or **PostgreSQL** (production ready), managed via **SQLModel** (a combination of SQLAlchemy and Pydantic).
+*   **Authentication**: Managed by **Clerk**, providing secure identity management (JWTs) which are verified by the backend dependency injection system.
+*   **Storage**: **Supabase Storage** is used for hosting optimized event banners and user assets.
 
-```powershell
+```mermaid
+graph LR
+    User[User (Browser)] <-->|HTTPS / JSON| Frontend[React App];
+    Frontend <-->|REST API| Backend[FastAPI Server];
+    Frontend <-->|Auth Tokens| Clerk[Clerk Auth];
+    Backend <-->|SQL Queries| DB[(Database)];
+    Backend <-->|Dependencies| Auth[Auth Layer];
+```
+
+---
+
+## 🚀 Key Technical Features
+
+### 1. Zero N+1 Query Performance
+**Problem**: Displaying an organizer's dashboard typically requires fetching a list of events (1 query) and then fetching feedback counts/ratings for *each* event (N queries), leading to slow loading times as data grows.
+**Solution**: We implemented **Server-Side SQL Aggregation**. The backend performs a single optimized query using `LEFT OUTER JOIN` and `GROUP BY`, calculating average ratings and feedback counts directly in the database engine.
+*   **Result**: Dashboard loads in O(1) time regardless of the number of events.
+
+### 2. Concurrency Control & Data Safety
+**Problem**: In high-demand events, multiple users might click "Join" at the exact same millisecond. A standard "read-then-write" check could allow more users than the maximum capacity.
+**Solution**: We utilize **Row-Level Locking** (`SELECT ... FOR UPDATE`) during the registration transaction.
+*   **Mechanism**: The database locks the specific event row during a join request. Simultaneous requests wait their turn, ensuring the `currentVolunteers` count is always accurate and never exceeds `maxVolunteers`.
+
+### 3. Data Integrity Constraints
+*   **Database Rules**: A `UniqueConstraint` on `(userId, eventId)` exists at the schema level. It is physically impossible for a user to double-register, even if the application logic failed.
+
+---
+
+## 🔄 Core Workflows
+
+### The Event Lifecycle
+1.  **Creation**: An Organizer (Admin) creates an event via the `EventFormModal`.
+    *   *System*: Validates permissions via `get_current_organizer` dependency.
+2.  **Registration**: A Volunteer clicks "Join".
+    *   *System*: Locks event row -> Checks quotas -> Creates `Registration` record (Status: Pending) -> Updates UI.
+3.  **Approval**: Organizer reviews the "Volunteers" modal.
+    *   *System*: Organizer clicks "Approve". System atomically updates `Registration.status` to `CONFIRMED` and increments `Event.currentVolunteers`.
+4.  **Completion**: Event concludes. Organizer marks status as `COMPLETED`.
+    *   *System*: Triggers logic allowing volunteers to earn badges.
+5.  **Feedback**: Volunteers rate the event.
+    *   *System*: Accepts rating (1-5) -> Updates aggregate stats shown on Organizer Dashboard.
+
+---
+
+## 📂 Database Schema
+
+The data model is designed for strict relational integrity:
+
+*   **User**: Managed externally by Clerk, mapped internally via `userId` strings.
+*   **Event**: The core entity. Contains `maxVolunteers`, `currentVolunteers`, `status` (upcoming/completed).
+*   **Registration**: A link table between User and Event. Stores the `status` (pending/confirmed/rejected) of the application.
+*   **Feedback**: Stores ratings and comments. Linked to both User and Event.
+*   **Bookmark**: Simple user-saved events for quick access.
+
+---
+
+## ⚡ Getting Started Guide
+
+### Prerequisites
+*   **Node.js 18+** (Frontend environment)
+*   **Python 3.10+** (Backend environment)
+*   **Git** (Version control)
+
+### 1. Clone & Prepare
+```bash
 git clone https://github.com/Jayden-Yong/Project-Management-SULAM.git
 cd Project-Management-SULAM
 ```
 
-### 2. Backend Setup (FastAPI)
+### 2. Backend Setup
+The backend runs on port `8000`.
 
-#### Navigate to backend directory
 ```powershell
 cd backend
-```
 
-#### Create Python virtual environment
-```powershell
+# Create Virtual Environment
 python -m venv venv
-```
-
-#### Activate virtual environment
-```powershell
 .\venv\Scripts\Activate.ps1
-```
 
-> **Note:** If you get an execution policy error, run:
-> ```powershell
-> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> ```
-
-#### Install Python dependencies
-```powershell
+# Install Dependencies
 pip install -r requirements.txt
-```
 
-#### Configure environment variables
-
-Create a `.env` file in the `backend/` directory by copying the example:
-```powershell
+# Environment Setup
 Copy-Item .env.example .env
-```
+# [Action Required] Open .env and check settings (Default DEBUG=True)
 
-Or create it manually with these contents:
-```env
-# App Configuration
-APP_NAME=Volunteerism App Backend
-ENVIRONMENT=development
-DEBUG=True
-
-# Server Configuration
-HOST=0.0.0.0
-PORT=8000
-
-# CORS Configuration
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-```
-
-> **Note:** The `.env` file is gitignored for security. Use `.env.example` as a template.
-
-#### Run the backend server
-```powershell
+# Run Server
 python main.py
 ```
+> The API will be available at `http://localhost:8000`. Documentation at `/docs`.
 
-✅ Backend is now running at `http://localhost:8000`
-- API documentation: `http://localhost:8000/docs`
+### 3. Frontend Setup
+The frontend runs on port `5173`.
 
----
-
-### 3. Frontend Setup (React + Vite)
-
-Open a **new terminal** and navigate to the project root:
-
-#### Navigate to frontend directory
 ```powershell
 cd frontend
-```
 
-#### Install Node dependencies
-```powershell
+# Install Dependencies
 npm install
-```
 
-#### Configure Clerk Authentication
-
-1. **Get your Clerk Publishable Key:**
-   - Go to [Clerk Dashboard](https://dashboard.clerk.com/)
-   - Select your application (or create a new one)
-   - Navigate to **API Keys**
-   - Copy the **Publishable Key** (starts with `pk_test_` or `pk_live_`)
-
-2. **Create `.env` file** in the `frontend/` directory:
-```powershell
-# Copy the example file
+# Environment Setup
 Copy-Item .env.example .env
+# [Action Required] Open .env and add your VITE_CLERK_PUBLISHABLE_KEY
 
-# Then edit .env and replace your actual Clerk key
-```
-
-Or create `.env` manually with these contents:
-```env
-# Clerk Authentication
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_actual_key_here
-
-# Backend API URL
-VITE_API_URL=http://localhost:8000
-
-# App Information
-VITE_APP_NAME=VolunteerHub
-VITE_APP_VERSION=1.0.0
-```
-
-> **Important:** Replace `pk_test_your_actual_key_here` with your real Clerk publishable key!
-
-3. **Enable OAuth providers in Clerk (Optional):**
-   - In Clerk Dashboard → **SSO Connections**
-   - Enable **Google** and/or **Apple** OAuth
-   - Configure credentials from respective developer consoles
-
-#### Run the frontend development server
-```powershell
+# Run Client
 npm run dev
 ```
 
-Frontend is now running at `http://localhost:5173`
+---
+
+## 🧪 Verification & Testing
+
+To verify the system is working correctly:
+
+1.  **Health Check**: Visit `http://localhost:8000/health`. You should see `{"status": "healthy"}`.
+2.  **Concurrency Test**: Open the app in two different browsers (incognito), creating two different user accounts. Try to join a "1 slot remaining" event at the same time. Only one should succeed.
+3.  **Organizer Dashboard**: Create 5 events, add feedback to them via the database or UI, and verify the Dashboard loads instantly with correct averages.
 
 ---
 
-## Daily Development Workflow
+## 🤝 Contributing
 
-### Starting the Application
-
-**Terminal 1 - Backend:**
-```powershell
-cd backend
-.\venv\Scripts\Activate.ps1
-python main.py
-```
-
-**Terminal 2 - Frontend:**
-```powershell
-cd frontend
-npm run dev
-```
-
-### Installing New Dependencies
-
-**Backend (Python packages):**
-```powershell
-# Activate venv first
-.\venv\Scripts\Activate.ps1
-
-# Install package
-pip install package-name
-
-# Update requirements.txt
-pip freeze > requirements.txt
-```
-
-**Frontend (npm packages):**
-```powershell
-cd frontend
-npm install package-name
-```
+We welcome contributions! Please follow these steps:
+1.  Fork the repo.
+2.  Create a branch: `git checkout -b feature/new-thing`.
+3.  Commit changes: `git commit -m "Added new thing"`.
+4.  Push: `git push origin feature/new-thing`.
+5.  Submit a Pull Request.
 
 ---
 
-## Project Structure
+## 📄 License
 
-```
-Project-Management-SULAM/
-├── backend/
-│   ├── venv/              # Python virtual environment (gitignored)
-│   ├── main.py            # FastAPI application entry point
-│   ├── config.py          # Configuration management
-│   ├── requirements.txt   # Python dependencies
-│   ├── .env.example       # Environment variables template
-│   └── .env               # Your local environment variables (gitignored)
-│
-├── frontend/
-│   ├── src/
-│   │   ├── pages/         # Page components
-│   │   ├── components/    # Reusable UI components
-│   │   ├── routes/        # React Router configuration
-│   │   ├── config/        # Frontend configuration
-│   │   └── main.tsx       # React application entry point
-│   ├── package.json       # Node dependencies
-│   ├── vite.config.js     # Vite configuration
-│   ├── .env.example       # Environment variables template
-│   └── .env               # Your local environment variables (gitignored)
-│
-└── README.md
-```
-
----
-
-## Environment Variables Reference
-
-### Backend (.env)
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_NAME` | Application name | Volunteerism App Backend |
-| `ENVIRONMENT` | Environment mode | development |
-| `DEBUG` | Debug mode | True |
-| `HOST` | Server host | 0.0.0.0 |
-| `PORT` | Server port | 8000 |
-| `CORS_ORIGINS` | Allowed CORS origins | http://localhost:5173,http://localhost:3000 |
-
-### Frontend (.env)
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk authentication key | Yes |
-| `VITE_API_URL` | Backend API URL | Yes |
-| `VITE_APP_NAME` | Application name | No |
-| `VITE_APP_VERSION` | Application version | No |
-
----
-
-## Tech Stack
-
-### Backend
-- **FastAPI** - Modern Python web framework
-- **Uvicorn** - ASGI server
-- **Pydantic** - Data validation
-- **Python-dotenv** - Environment variable management
-
-### Frontend
-- **React 19** - UI library
-- **Vite** - Build tool and dev server
-- **TypeScript** - Type safety
-- **Tailwind CSS v4** - Styling
-- **Clerk** - Authentication
-- **React Router** - Client-side routing
-- **Radix UI** - Accessible UI components
-- **Lucide Icons** - Icon library
-
----
-
-## Testing the Setup
-
-1. **Backend health check:**
-   ```powershell
-   curl http://localhost:8000/health
-   ```
-   Expected response:
-   ```json
-   {
-     "status": "healthy",
-     "app": "Volunteerism App Backend",
-     "version": "1.0.0"
-   }
-   ```
-
-2. **Frontend:** 
-   - Visit `http://localhost:5173`
-   - You should see the landing page
-   - Try logging in with Clerk authentication
-
----
-
-## Troubleshooting
-
-### Backend Issues
-
-**"Python not recognized"**
-- Ensure Python is installed and added to PATH
-- Try `python3` instead of `python`
-
-**Port 8000 already in use**
-- Change `PORT` in `backend/.env`
-- Or kill the process using port 8000
-
-**Module not found errors**
-- Ensure virtual environment is activated
-- Reinstall dependencies: `pip install -r requirements.txt`
-
-### Frontend Issues
-
-**"Cannot find module" errors**
-- Delete `node_modules/` and `package-lock.json`
-- Run `npm install` again
-
-**Clerk authentication not working**
-- Verify `VITE_CLERK_PUBLISHABLE_KEY` is set correctly
-- Check Clerk Dashboard for valid API key
-- Ensure key starts with `pk_test_` or `pk_live_`
-
-**Port 5173 already in use**
-- Vite will automatically try the next available port
-- Or specify a custom port: `npm run dev -- --port 3000`
-
----
-
-## Team Collaboration
-
-After pulling latest changes from the repository:
-
-**Backend updates:**
-```powershell
-cd backend
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-**Frontend updates:**
-```powershell
-cd frontend
-npm install
-```
-
----
-
-## Additional Resources
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [React Documentation](https://react.dev/)
-- [Vite Documentation](https://vite.dev/)
-- [Clerk Documentation](https://clerk.com/docs)
-- [Tailwind CSS v4](https://tailwindcss.com/docs)
-
----
-
-## License
-
-This project is part of the SULAM group project initiative.
-
----
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Test thoroughly
-4. Submit a pull request
-
-For questions or issues, contact the project team.
+This project is part of the SULAM academic initiative. All rights reserved.

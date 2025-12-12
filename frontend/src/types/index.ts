@@ -1,10 +1,16 @@
-// Enums for rigid values
+// ==========================================
+// Enums & Constants
+// ==========================================
+
 export enum UserRole {
   VOLUNTEER = 'volunteer',
   ORGANIZER = 'organizer'
 }
 
-// Domain Entities
+// ==========================================
+// User Domain
+// ==========================================
+
 export interface User {
   id: string;
   name: string;
@@ -13,6 +19,19 @@ export interface User {
   avatar?: string;
   bookmarks?: string[];
 }
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  earnedAt: string;
+}
+
+// ==========================================
+// Event Domain
+// ==========================================
 
 export interface Event {
   id: string;
@@ -23,17 +42,24 @@ export interface Event {
   maxVolunteers: number;
   currentVolunteers: number;
   description: string;
-  organizerId: string;
-  organizerName: string;
   imageUrl?: string;
   tasks?: string;
   status: 'upcoming' | 'completed';
+
+  // Organizer Info
+  organizerId: string;
+  organizerName: string;
 }
 
 export interface EventWithStats extends Event {
+  // Aggregated stats from backend (avg rating, count)
   avgRating: number;
   feedbackCount: number;
 }
+
+// ==========================================
+// Interaction Domain (Registrations, Feedback)
+// ==========================================
 
 export interface Registration {
   id: string;
@@ -42,24 +68,17 @@ export interface Registration {
   status: 'pending' | 'confirmed' | 'rejected';
   joinedAt: string;
 
-  // Flattened fields for easy display in tables/cards
+  // Flattened event details (Joined from backend)
   eventTitle?: string;
   eventDate?: string;
   eventStatus?: string;
+
+  // Flags
   hasFeedback?: boolean;
 
-  // Organizer view fields
+  // Organizer View: User details
   userName?: string;
   userAvatar?: string;
-}
-
-export interface Badge {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  earnedAt: string;
 }
 
 export interface Feedback {

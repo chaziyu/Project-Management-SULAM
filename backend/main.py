@@ -16,17 +16,21 @@ from models import (
     RegistrationStatus, EventReadWithStats
 )
 
+# ==========================================
+# Application Lifecycle & Setup
+# ==========================================
 
-# --- Lifespan (Startup/Shutdown) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Handle startup and shutdown events.
+    Creates tables on startup if they don't exist.
+    """
     print(f"🚀 Starting {settings.APP_NAME}...")
-    # Automatically create tables if they don't exist
     SQLModel.metadata.create_all(engine)
     yield
     print("🛑 Shutting down...")
 
-# --- App Setup ---
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
@@ -42,17 +46,25 @@ app.add_middleware(
 )
 
 # ==========================================
-# Endpoints
+# Core Dependencies
 # ==========================================
 
-# --- DEPENDENCIES ---
 async def get_current_organizer(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Dependency to ensure the user is an authorized organizer.
+    """
     if not is_organizer(current_user):
         raise HTTPException(status_code=403, detail="Only organizers can perform this action")
     return current_user
 
-# --- LOGIC HANDLERS ---
+# ==========================================
+# Business Logic Helpers
+# ==========================================
+
 def calculate_badges_logic(completed_count: int) -> List[dict]:
+    """
+    Determines which badges a user has earned based on their completed mission count.
+    """
     badges = []
     today = datetime.date.today().isoformat()
     
@@ -74,7 +86,7 @@ def calculate_badges_logic(completed_count: int) -> List[dict]:
     return badges
 
 # ==========================================
-# Endpoints
+# API Endpoints
 # ==========================================
 
 @app.get("/")
@@ -89,7 +101,7 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-# --- EVENTS ---
+# --- Event Management ---
 
 @app.get("/events", response_model=List[Event])
 async def get_events(
@@ -99,7 +111,9 @@ async def get_events(
     limit: int = 100, 
     session: Session = Depends(get_session)
 ):
-    """Fetch all events, optionally filtered by organizer or status."""
+    """
+    Fetch all events, with optional filtering and pagination.
+    """
     query = select(Event)
     if organizerId:
         query = query.where(Event.organizerId == organizerId)
@@ -113,26 +127,63 @@ async def get_events(
 async def create_event(
     event: Event, 
     session: Session = Depends(get_session),
-    current_organizer: dict = Depends(get_current_organizer) # REFACTORED
+    current_organizer: dict = Depends(get_current_organizer) 
 ):
-    """Create a new event. Requires Auth & Organizer Role."""
-    
+    """
+    Create a new event. 
+    Restricted to Organizers.
+    """
     event.organizerId = current_organizer.get("sub")
-    # Organized check removed (handled by dependency)
-
+    
     session.add(event)
     session.commit()
     session.refresh(event)
     return event
+
+@app.put("/events/{event_id}", response_model=Event)
+async def update_event_details(
+    event_id: str,
+    event_update: Event, 
+    session: Session = Depends(get_session),
+    current_organizer: dict = Depends(get_current_organizer) 
+):
+    """
+    Update event information (Title, Description, Image, etc).
+    """
+    db_event = session.get(Event, event_id)
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    if db_event.organizerId != current_organizer.get("sub"):
+        raise HTTPException(status_code=403, detail="Not authorized to edit this event")
+    
+    # Update allowed fields
+    db_event.title = event_update.title
+    db_event.date = event_update.date
+    db_event.location = event_update.location
+    db_event.category = event_update.category
+    db_event.maxVolunteers = event_update.maxVolunteers
+    db_event.description = event_update.description
+    db_event.tasks = event_update.tasks
+    
+    if event_update.imageUrl: 
+        db_event.imageUrl = event_update.imageUrl
+        
+    session.add(db_event)
+    session.commit()
+    session.refresh(db_event)
+    return db_event
 
 @app.patch("/events/{event_id}", response_model=Event)
 async def update_event_status(
     event_id: str, 
     payload: UpdateEventStatusRequest, 
     session: Session = Depends(get_session),
-    current_organizer: dict = Depends(get_current_organizer) # REFACTORED
+    current_organizer: dict = Depends(get_current_organizer)
 ):
-    """Update event status (e.g. to 'completed')."""
+    """
+    Change event status (e.g. Upcoming -> Completed).
+    """
     event = session.get(Event, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -153,11 +204,14 @@ async def join_event(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    """Register a user for an event."""
+    """
+    Register a volunteer for an event.
+    Handlers concurrency to prevent duplicate sign-ups or over-booking race conditions.
+    """
     if payload.userId != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Cannot join for another user")
 
-    # FIX 1: Race Condition Fix (Code Level)
+    # Lock row to prevent race conditions during high traffic
     statement = select(Event).where(Event.id == event_id).with_for_update()
     event = session.exec(statement).one_or_none()
     
@@ -176,6 +230,7 @@ async def join_event(
         eventId=event_id,
         userId=payload.userId,
         joinedAt=datetime.date.today().isoformat(),
+        # Use provided name/avatar or fallback
         userName=payload.userName or f"Student {payload.userId[-4:]}", 
         userAvatar=payload.userAvatar or "",
         status=RegistrationStatus.PENDING 
@@ -186,7 +241,7 @@ async def join_event(
     session.refresh(new_reg)
     return new_reg
 
-# --- REGISTRATIONS ---
+# --- Registration Management ---
 
 @app.get("/events/{event_id}/registrations")
 async def get_event_registrations(
@@ -202,13 +257,17 @@ async def update_registration_status(
     registration_id: str, 
     payload: UpdateRegistrationStatusRequest,
     session: Session = Depends(get_session),
-    current_organizer: dict = Depends(get_current_organizer) # REFACTORED
+    current_organizer: dict = Depends(get_current_organizer)
 ):
-    """Approve or Reject a volunteer."""
+    """
+    Approve or Reject a volunteer application.
+    Updates the event's volunteer count atomically.
+    """
     reg = session.get(Registration, registration_id)
     if not reg:
         raise HTTPException(status_code=404, detail="Registration not found")
     
+    # Lock event row to safely update 'currentVolunteers' count
     event = session.exec(
         select(Event).where(Event.id == reg.eventId).with_for_update()
     ).one_or_none()
@@ -222,7 +281,9 @@ async def update_registration_status(
     old_status = reg.status
     new_status = payload.status
     
+    # Logic: Only update count if changing TO/FROM 'Confirmed' status
     if new_status == RegistrationStatus.CONFIRMED and old_status != RegistrationStatus.CONFIRMED:
+        # Check quota
         if event.currentVolunteers >= event.maxVolunteers:
             raise HTTPException(status_code=400, detail="Event quota reached.")
         event.currentVolunteers += 1
@@ -244,7 +305,10 @@ async def get_user_registrations(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all events a user has joined."""
+    """
+    Get all activities a user has joined (past and upcoming).
+    Enriches result with Event details and Feedback status.
+    """
     if user_id != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -268,7 +332,7 @@ async def get_user_registrations(
         
     return enriched_regs
 
-# --- FEEDBACK & UTILS ---
+# --- Feedback & Ratings ---
 
 @app.get("/events/{event_id}/rating")
 async def get_event_rating(event_id: str, session: Session = Depends(get_session)):
@@ -285,7 +349,7 @@ async def get_feedbacks(
     eventId: Optional[str] = None, 
     session: Session = Depends(get_session)
 ):
-    """Filter feedbacks by user or event."""
+    """Filter feedbacks by user ID or event ID."""
     query = select(Feedback)
     if userId: query = query.where(Feedback.userId == userId)
     if eventId: query = query.where(Feedback.eventId == eventId)
@@ -297,11 +361,16 @@ async def submit_feedback(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """
+    Submit a review for a completed event.
+    """
     if feedback.userId != current_user.get("sub"):
         raise HTTPException(status_code=403, detail="Cannot submit feedback for another user")
     session.add(feedback)
     session.commit()
     return {"status": "success"}
+
+# --- Bookmarks & Badges ---
 
 @app.get("/users/{user_id}/bookmarks")
 async def get_user_bookmarks(
@@ -309,6 +378,7 @@ async def get_user_bookmarks(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """Get list of event IDs bookmarked by the user."""
     if user_id != current_user.get("sub"):
          raise HTTPException(status_code=403, detail="Access denied")
     
@@ -322,6 +392,7 @@ async def toggle_bookmark(
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user)
 ):
+    """Toggle bookmark status for an event (Add/Remove)."""
     if user_id != current_user.get("sub"):
          raise HTTPException(status_code=403, detail="Access denied")
          
@@ -339,54 +410,6 @@ async def toggle_bookmark(
     bookmarks = session.exec(select(Bookmark).where(Bookmark.userId == user_id)).all()
     return [b.eventId for b in bookmarks]
 
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, reload=True)
-
-# NEW: Endpoint to Edit Event Details
-@app.put("/events/{event_id}", response_model=Event)
-async def update_event_details(
-    event_id: str,
-    event_update: Event, # We accept the full Event object structure
-    session: Session = Depends(get_session),
-    current_organizer: dict = Depends(get_current_organizer) # REFACTORED
-):
-    """Update event details (Title, Description, Image, etc)."""
-    # 1. Fetch existing
-    db_event = session.get(Event, event_id)
-    if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    
-    # 2. Authorization
-    if db_event.organizerId != current_organizer.get("sub"):
-        raise HTTPException(status_code=403, detail="Not authorized to edit this event")
-    
-    # 3. Update fields (excluding ID and OrganizerID to be safe)
-    db_event.title = event_update.title
-    db_event.date = event_update.date
-    db_event.location = event_update.location
-    db_event.category = event_update.category
-    db_event.maxVolunteers = event_update.maxVolunteers
-    db_event.description = event_update.description
-    db_event.tasks = event_update.tasks
-    if event_update.imageUrl: # Only update if new image provided
-        db_event.imageUrl = event_update.imageUrl
-        
-    session.add(db_event)
-    session.commit()
-    session.refresh(db_event)
-    return db_event
-
-# ... (Keep update_event_status and join_event as is)
-
-# ==========================================
-# BADGES (Make Dynamic)
-# ==========================================
-
-# ... (Keep Registration and Feedback endpoints as is)
-
 @app.get("/users/{user_id}/badges")
 async def get_user_badges(
     user_id: str,
@@ -394,9 +417,9 @@ async def get_user_badges(
 ):
     """
     Dynamically calculate badges based on completed events.
-    Fixes 'Cannot add badge' by automating the process.
+    Returns a list of earned badge objects.
     """
-    # 1. Count completed & confirmed registrations
+    # Simply count how many confirmed registrations are for 'completed' events
     statement = (
         select(Registration)
         .join(Event)
@@ -406,32 +429,25 @@ async def get_user_badges(
     )
     completed_count = len(session.exec(statement).all())
     
-    # REFACTORED: Use helper logic
     return calculate_badges_logic(completed_count)
 
-# ==========================================
-# OPTIMIZED ENDPOINTS (Performance)
-# ==========================================
+# --- Organizer Dashboard Extension ---
 
 @app.get("/organizers/dashboard", response_model=List[EventReadWithStats])
 async def get_organizer_dashboard_stats(
     limit: int = 100, 
     skip: int = 0,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(get_current_organizer) # REFACTORED: Use dependency
+    current_user: dict = Depends(get_current_organizer)
 ):
     """
     Optimized endpoint for Organizer Dashboard.
-    Fetches events AND pre-calculates rating/feedback count in one go using SQL Aggregation.
+    Fetches events AND pre-calculates rating/feedback count using SQL Aggregation.
+    Eliminates N+1 query performance issues.
     """
-    if not is_organizer(current_user):
-         raise HTTPException(status_code=403, detail="Access denied")
-
     organizer_id = current_user.get("sub")
     
-    # FIX 2 & 3: SQL Aggregation (Orbiting N+1) & Pagination
-    # We join Event with Feedback (LEFT JOIN to keep events with 0 feedback)
-    # We group by Event.id to aggregate feedback stats per event
+    # Left Outer Join ensures we still get events with 0 reviews
     query = (
         select(
             Event, 
@@ -449,7 +465,7 @@ async def get_organizer_dashboard_stats(
     
     dashboard_data = []
     for event, avg_rating, feedback_count in results:
-        # Map tuple result back to our Pydantic model
+        # Map tuple result back to our Schema
         event_with_stats = EventReadWithStats.model_validate(event)
         event_with_stats.avgRating = round(avg_rating, 1)
         event_with_stats.feedbackCount = feedback_count
@@ -463,12 +479,11 @@ async def get_my_bookmarked_events(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Optimized endpoint for Volunteer Dashboard (Saved Tab).
-    Joins Bookmark -> Event to fetch data directly.
+    Fetch full event details for all bookmarks of the current user.
+    Uses SQL JOIN for efficiency.
     """
     user_id = current_user.get("sub")
     
-    # SQL Join: Select Event where Bookmark.userId == user_id AND Bookmark.eventId == Event.id
     query = (
         select(Event)
         .join(Bookmark, Bookmark.eventId == Event.id)
@@ -476,3 +491,8 @@ async def get_my_bookmarked_events(
     )
     
     return session.exec(query).all()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, reload=True)

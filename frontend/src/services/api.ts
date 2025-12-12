@@ -1,7 +1,10 @@
 import axios from 'axios';
-import { Event, Registration, Badge, Feedback } from '../types';
+import { Event, Registration, Badge, Feedback, EventWithStats } from '../types';
 
-// 1. Setup Axios Client
+// ==========================================
+// API Client Configuration
+// ==========================================
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   headers: {
@@ -9,17 +12,15 @@ const api = axios.create({
   },
 });
 
-// --- NEW: Dynamic Token Handling ---
+// --- Dynamic Token Injection ---
+// Allows the React app (Clerk) to provide a fresh token on every request.
+
 let getTokenFn: (() => Promise<string | null>) | null = null;
 
-/**
- * Stores the Clerk getToken function so the API can use it later.
- */
 export const setupAxiosInterceptors = (tokenGetter: () => Promise<string | null>) => {
   getTokenFn = tokenGetter;
 };
 
-// Add a request interceptor to fetch a fresh token before EVERY request
 api.interceptors.request.use(async (config) => {
   if (getTokenFn) {
     try {
@@ -28,16 +29,14 @@ api.interceptors.request.use(async (config) => {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (error) {
-      console.error("Error fetching fresh token:", error);
+      console.error("Error fetching auth token:", error);
     }
   }
   return config;
-}, (error) => {
-  return Promise.reject(error);
-});
+}, (error) => Promise.reject(error));
 
 // ==========================================
-// Event Endpoints
+// Events
 // ==========================================
 
 export const getEvents = async (status?: string): Promise<Event[]> => {
@@ -51,9 +50,13 @@ export const getOrganizerEvents = async (organizerId: string): Promise<Event[]> 
   return data;
 };
 
-// FIX: Corrected 'constHf' to 'const'
 export const createEvent = async (eventData: Partial<Event>): Promise<Event> => {
   const { data } = await api.post('/events', eventData);
+  return data;
+};
+
+export const updateEvent = async (eventId: string, eventData: Partial<Event>): Promise<Event> => {
+  const { data } = await api.put(`/events/${eventId}`, eventData);
   return data;
 };
 
@@ -61,6 +64,10 @@ export const updateEventStatus = async (eventId: string, status: 'upcoming' | 'c
   const { data } = await api.patch(`/events/${eventId}`, { status });
   return data;
 };
+
+// ==========================================
+// Interactions (Join / Volunteers)
+// ==========================================
 
 export const joinEvent = async (eventId: string, userId: string, userName: string, userAvatar: string): Promise<Registration> => {
   const { data } = await api.post(`/events/${eventId}/join`, { userId, userName, userAvatar });
@@ -72,17 +79,17 @@ export const getEventRegistrations = async (eventId: string): Promise<Registrati
   return data;
 };
 
+export const updateRegistrationStatus = async (registrationId: string, status: 'confirmed' | 'rejected'): Promise<Registration> => {
+  const { data } = await api.patch(`/registrations/${registrationId}`, { status });
+  return data;
+};
+
 // ==========================================
-// User & Registration Endpoints
+// User Data (Profile, Bookmarks, Badges)
 // ==========================================
 
 export const getUserRegistrations = async (userId: string): Promise<Registration[]> => {
   const { data } = await api.get(`/users/${userId}/registrations`);
-  return data;
-};
-
-export const updateRegistrationStatus = async (registrationId: string, status: 'confirmed' | 'rejected'): Promise<Registration> => {
-  const { data } = await api.patch(`/registrations/${registrationId}`, { status });
   return data;
 };
 
@@ -102,7 +109,7 @@ export const getUserBadges = async (userId: string): Promise<Badge[]> => {
 };
 
 // ==========================================
-// Feedback Endpoints
+// Feedback
 // ==========================================
 
 export const getEventAverageRating = async (eventId: string): Promise<number> => {
@@ -123,21 +130,22 @@ export const submitFeedback = async (data: { eventId: string; userId: string; ra
   await api.post('/feedbacks', data);
 };
 
-// Add this function near createEvent
-export const updateEvent = async (eventId: string, eventData: Partial<Event>): Promise<Event> => {
-  const { data } = await api.put(`/events/${eventId}`, eventData);
-  return data;
-};
-
 // ==========================================
-// OPTIMIZED METHODS (Performance)
+// Optimized / Dashboard Specific
 // ==========================================
 
-export const getOrganizerStats = async (): Promise<import('../types').EventWithStats[]> => {
+/**
+ * Fetches events for the organizer dashboard with pre-aggregated stats (ratings/counts).
+ * Prevents N+1 query issues.
+ */
+export const getOrganizerStats = async (): Promise<EventWithStats[]> => {
   const { data } = await api.get('/organizers/dashboard');
   return data;
 };
 
+/**
+ * Fetches full event details for bookmarked items in one request.
+ */
 export const getBookmarkedEventsDetail = async (): Promise<Event[]> => {
   const { data } = await api.get('/users/me/bookmarks/events');
   return data;

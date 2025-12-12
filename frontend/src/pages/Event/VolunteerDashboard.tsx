@@ -1,43 +1,54 @@
 import React, { useEffect, useState } from 'react';
-import { User, Registration, Badge, Event } from '../../types'; // Fixed path
+import { User, Registration, Badge, Event } from '../../types';
 import {
   getUserRegistrations,
   submitFeedback,
   getUserBadges,
-  getEvents,
-  getUserBookmarks,
-  getBookmarkedEventsDetail // Imported getBookmarkedEventsDetail
-} from '../../services/api'; // Fixed path
+  getBookmarkedEventsDetail
+} from '../../services/api';
 
 interface Props {
   user: User;
 }
 
+// ==========================================
+// Component: Volunteer Dashboard
+// ==========================================
+
 export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
+
+  // --- State: Data ---
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [bookmarkedEvents, setBookmarkedEvents] = useState<Event[]>([]);
+
+  // --- State: UI ---
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'saved'>('upcoming');
 
-  // Feedback Modal State
+  // --- State: Feedback Modal ---
   const [feedbackModal, setFeedbackModal] = useState<{ isOpen: boolean, eventId: string, eventTitle: string } | null>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 
+  // ==========================================
+  // Data Fetching
+  // ==========================================
+
   const loadData = async () => {
     try {
+      // Fetch all dashboard data in parallel for speed
       const [regsData, badgesData, savedEvents] = await Promise.all([
         getUserRegistrations(user.id),
         getUserBadges(user.id),
-        getBookmarkedEventsDetail() // OPTIMIZATION: Fetch only saved events directly
+        getBookmarkedEventsDetail()
       ]);
       setRegistrations(regsData);
       setBadges(badgesData);
       setBookmarkedEvents(savedEvents);
 
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load dashboard data", e);
     } finally {
       setLoading(false);
     }
@@ -46,6 +57,10 @@ export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
   useEffect(() => {
     loadData();
   }, [user.id]);
+
+  // ==========================================
+  // Interaction Handlers
+  // ==========================================
 
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,12 +76,15 @@ export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
     setFeedbackModal(null);
     setRating(5);
     setComment('');
-    loadData();
+    loadData(); // Refresh to update "Rated" status and points
   };
+
+  // ==========================================
+  // Helper Logic
+  // ==========================================
 
   const upcomingEvents = registrations.filter(r => r.eventStatus === 'upcoming');
   const pastEvents = registrations.filter(r => r.eventStatus === 'completed' && r.status === 'confirmed');
-
   const totalPoints = pastEvents.length * 5;
 
   const getStatusPill = (status: string) => {
@@ -77,6 +95,10 @@ export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
       default: return null;
     }
   };
+
+  // ==========================================
+  // Render
+  // ==========================================
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 pb-24">
