@@ -39,7 +39,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=[
+        "http://localhost:5173", 
+        "https://umissionweb.vercel.app", 
+        "https://volunteer-backend-u15e.onrender.com"
+    ] + settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -422,7 +426,7 @@ async def get_user_badges(
     # Simply count how many confirmed registrations are for 'completed' events
     statement = (
         select(Registration)
-        .join(Event)
+        .join(Event, Registration.eventId == Event.id)
         .where(Registration.userId == user_id)
         .where(Registration.status == RegistrationStatus.CONFIRMED)
         .where(Event.status == "completed")
