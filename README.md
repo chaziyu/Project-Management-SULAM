@@ -18,23 +18,34 @@ The application follows a clean **Client-Server Architecture**:
 
 ## 🚀 Key Features
 
-### 1\. For Students (Volunteers)
+### 1. For Students (Volunteers)
 
-  * **Digital ID Dashboard**: A personalized dashboard featuring a dynamic student ID card that tracks accumulated merit points and hours.
-  * **Gamification System**: Automatically earn badges (e.g., "First Step", "Helping Hand", "Super Star") based on the number of completed missions (1, 3, 5).
-  * **Smart Event Feed**: Browse upcoming events with filters for **Category** (Education, Environment, etc.) and **Location** (Residential Colleges, Faculties).
-  * **Bookmarks**: Save interesting events to a personal "Saved" list for later review.
-  * **One-Click Registration**: Seamlessly join events with real-time status tracking (`Pending` → `Confirmed`).
-  * **Feedback Loop**: Rate and review events (1-5 stars) after completion to help clubs improve.
+*   **Discovery Feed**:
+    *   **Browse & Search**: Filter events by category (e.g., "Education") or Keywords (e.g., "KK12").
+    *   **Bookmarks (NEW)**: Save events to your personal "Saved" list using the Heart button.
+    *   **One-Click Join**: Send requests instantly. View status in the **"Applications"** tab.
+*   **Student Dashboard**:
+    *   **Digital Profile**: Personalized ID card showing valid volunteer status.
+    *   **Merit System**: Automatically earn **5 Merit Stars** per completed event.
+    *   **Badges**: Unlock achievements ("First Step", "Helping Hand", "Super Star") at 1, 3, and 5 missions.
+    *   **My Schedule**: dedicated view for **Confirmed** vs **Pending** applications.
 
-### 2\. For Organizers (Club Admins)
+### 2. For Organizers (Club Admins)
 
-  * **Event Management**: Create, edit, and manage rich event details, including tasks, locations, and quotas.
-  * **Dashboard Analytics**:
-      * **Zero N+1 Query Performance**: The dashboard loads instantly using server-side SQL aggregation to calculate average ratings and feedback counts in a single query.
-  * **Volunteer Command Center**: Review applicants, approve/reject volunteers, and view user profiles.
-  * **Concurrency Safety**: Prevents over-subscription (Race Conditions) using database row-level locking (`SELECT ... FOR UPDATE`) when approving volunteers.
-  * **Banner Uploads**: Drag-and-drop image uploads for event banners via Supabase.
+*   **Event Management**:
+    *   **Create & Edit**: Full control over event details, including tasks and volunteer quotas.
+    *   **Banner Upload**: Drag-and-drop poster uploads powered by **Supabase**.
+*   **Volunteer Control**:
+    *   **Command Center**: Approve or Reject applicants with one click.
+    *   **Quota Safety**: Prevents over-booking (e.g., stops at 20/20 volunteers).
+*   **Analytics**:
+    *   **Feedback**: View average star ratings and read student reviews.
+    *   **History**: Archive events as "Completed" to finalize merit distribution.
+
+### 3. Security & Access
+
+*   **Auth**: Secure sign-up/login via **Clerk** (supporting Password Reset).
+*   **Role Protection**: Strict access control preventing students from accessing Admin features.
 
 -----
 
