@@ -107,3 +107,7 @@ class UpdateEventStatusRequest(SQLModel):
 
 class UpdateRegistrationStatusRequest(SQLModel):
     status: RegistrationStatus
+
+class UpdateFeedbackRequest(SQLModel):
+    rating: int = Field(ge=1, le=5)
+    comment: str

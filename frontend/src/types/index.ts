@@ -82,6 +82,7 @@ export interface Registration {
 }
 
 export interface Feedback {
+  id: string;
   eventId: string;
   userId: string;
   rating: number;

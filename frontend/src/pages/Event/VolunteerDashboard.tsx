@@ -27,7 +27,7 @@ export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<'schedule' | 'pending' | 'history' | 'saved'>('schedule');
 
   // --- State: Feedback Modal ---
-  const [feedbackModal, setFeedbackModal] = useState<{ isOpen: boolean, eventId: string, eventTitle: string } | null>(null);
+  const [feedbackModal, setFeedbackModal] = useState<{ isOpen: boolean, eventId: string, eventTitle: string, feedbackId?: string | null } | null>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 
@@ -66,12 +66,21 @@ export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
     e.preventDefault();
     if (!feedbackModal) return;
 
-    await submitFeedback({
-      eventId: feedbackModal.eventId,
-      userId: user.id,
-      rating,
-      comment
-    });
+    const feedbackId = feedbackModal.feedbackId;
+
+    if (feedbackId) {
+      // Update existing
+      // Dynamic import to avoid circular dependency issues if any
+      await import('../../services/api').then(m => m.updateFeedback(feedbackId, { rating, comment }));
+    } else {
+      // Create new
+      await submitFeedback({
+        eventId: feedbackModal.eventId,
+        userId: user.id,
+        rating,
+        comment
+      });
+    }
 
     setFeedbackModal(null);
     setRating(5);
@@ -229,15 +238,45 @@ export const VolunteerDashboard: React.FC<Props> = ({ user }) => {
                   {activeTab === 'history' ? (
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                       <span className="text-xs font-bold text-white bg-gradient-to-r from-yellow-400 to-yellow-500 px-3 py-1 rounded-full shadow-sm">+5 Merit</span>
+                      <span className="text-xs font-bold text-white bg-gradient-to-r from-yellow-400 to-yellow-500 px-3 py-1 rounded-full shadow-sm">+5 Merit</span>
                       {!reg.hasFeedback ? (
                         <button
-                          onClick={() => setFeedbackModal({ isOpen: true, eventId: reg.eventId, eventTitle: reg.eventTitle || 'Event' })}
+                          onClick={() => setFeedbackModal({
+                            isOpen: true,
+                            eventId: reg.eventId,
+                            eventTitle: reg.eventTitle || 'Event',
+                            feedbackId: null // New feedback
+                          })}
                           className="text-xs bg-white border border-slate-200 px-4 py-2 rounded-xl hover:bg-slate-50 text-slate-700 font-bold shadow-sm transition-transform active:scale-95"
                         >
                           Rate Event
                         </button>
                       ) : (
-                        <span className="text-xs text-slate-400 font-medium px-2">Rated ✓</span>
+                        <button
+                          onClick={async () => {
+                            // Fetch existing feedback to pre-fill
+                            try {
+                              const feedbacks = await import('../../services/api').then(m => m.getFeedbacks(user.id, reg.eventId));
+                              if (feedbacks.length > 0) {
+                                const f = feedbacks[0]; // Should be only one per user-event pair
+                                setRating(f.rating);
+                                setComment(f.comment);
+                                // @ts-ignore
+                                setFeedbackModal({
+                                  isOpen: true,
+                                  eventId: reg.eventId,
+                                  eventTitle: reg.eventTitle || 'Event',
+                                  feedbackId: f.id // Existing feedback ID
+                                });
+                              }
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                          className="text-xs text-slate-400 font-medium px-2 hover:text-primary-600 underline decoration-dotted underline-offset-2 transition-colors"
+                        >
+                          Edit Review
+                        </button>
                       )}
                     </div>
                   ) : (

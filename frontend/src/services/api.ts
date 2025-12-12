@@ -130,6 +130,10 @@ export const submitFeedback = async (data: { eventId: string; userId: string; ra
   await api.post('/feedbacks', data);
 };
 
+export const updateFeedback = async (feedbackId: string, data: { rating: number; comment: string }): Promise<void> => {
+  await api.put(`/feedbacks/${feedbackId}`, data);
+};
+
 // ==========================================
 // Optimized / Dashboard Specific
 // ==========================================

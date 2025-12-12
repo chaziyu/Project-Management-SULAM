@@ -12,7 +12,7 @@ from auth import get_current_user, is_organizer
 from models import (
     Event, Registration, Feedback, Bookmark, 
     BookmarkRequest, JoinRequest, 
-    UpdateEventStatusRequest, UpdateRegistrationStatusRequest,
+    UpdateEventStatusRequest, UpdateRegistrationStatusRequest, UpdateFeedbackRequest,
     RegistrationStatus, EventReadWithStats
 )
 
@@ -380,6 +380,30 @@ async def submit_feedback(
     session.add(feedback)
     session.commit()
     return {"status": "success"}
+
+@app.put("/feedbacks/{feedback_id}")
+async def update_feedback(
+    feedback_id: str,
+    payload: UpdateFeedbackRequest,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update an existing review.
+    """
+    db_feedback = session.get(Feedback, feedback_id)
+    if not db_feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+        
+    if db_feedback.userId != current_user.get("sub"):
+        raise HTTPException(status_code=403, detail="Cannot edit another user's feedback")
+        
+    db_feedback.rating = payload.rating
+    db_feedback.comment = payload.comment
+    
+    session.add(db_feedback)
+    session.commit()
+    return {"status": "updated"}
 
 # --- Bookmarks & Badges ---
 
