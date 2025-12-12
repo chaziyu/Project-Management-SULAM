@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Event, User, UserRole } from '../../types';
-import { getEvents, joinEvent, toggleBookmark } from '../../services/api';
+import { getEvents, joinEvent, toggleBookmark, getUserBookmarks } from '../../services/api';
 
 interface Props {
   user: User | null;
@@ -28,7 +28,7 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
       try {
         const [eventsData, bookmarksData] = await Promise.all([
           getEvents('upcoming'),
-          user ? import('../../services/api').then(m => m.getUserBookmarks(user.id)) : Promise.resolve([])
+          user ? getUserBookmarks(user.id) : Promise.resolve([])
         ]);
 
         // Sort: Soonest first
