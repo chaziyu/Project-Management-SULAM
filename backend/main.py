@@ -13,7 +13,7 @@ from models import (
     Event, Registration, Feedback, Bookmark, 
     BookmarkRequest, JoinRequest, 
     UpdateEventStatusRequest, UpdateRegistrationStatusRequest,
-    RegistrationStatus
+    RegistrationStatus, EventReadWithStats
 )
 
 
@@ -425,4 +425,64 @@ async def get_user_badges(
         })
 
     returnSV = badges
-    return returnSV
+    return badges
+
+# ==========================================
+# OPTIMIZED ENDPOINTS (Performance)
+# ==========================================
+
+@app.get("/organizers/dashboard", response_model=List[EventReadWithStats])
+async def get_organizer_dashboard_stats(
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Optimized endpoint for Organizer Dashboard.
+    Fetches events AND pre-calculates rating/feedback count in one go.
+    """
+    if not is_organizer(current_user):
+         raise HTTPException(status_code=403, detail="Access denied")
+
+    organizer_id = current_user.get("sub")
+    
+    # 1. Fetch all events for this organizer
+    events = session.exec(select(Event).where(Event.organizerId == organizer_id)).all()
+    
+    results = []
+    for event in events:
+        # 2. Calculate stats (Could be further optimized with SQL GROUP BY, but this is Step 1)
+        # Fetching strictly necessary data
+        feedbacks = session.exec(select(Feedback).where(Feedback.eventId == event.id)).all()
+        
+        avg_rating = 0.0
+        if feedbacks:
+            avg_rating = sum(f.rating for f in feedbacks) / len(feedbacks)
+            
+        # Create Read Model
+        event_with_stats = EventReadWithStats.model_validate(event)
+        event_with_stats.avgRating = round(avg_rating, 1)
+        event_with_stats.feedbackCount = len(feedbacks)
+        
+        results.append(event_with_stats)
+        
+    return results
+
+@app.get("/users/me/bookmarks/events", response_model=List[Event])
+async def get_my_bookmarked_events(
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Optimized endpoint for Volunteer Dashboard (Saved Tab).
+    Joins Bookmark -> Event to fetch data directly.
+    """
+    user_id = current_user.get("sub")
+    
+    # SQL Join: Select Event where Bookmark.userId == user_id AND Bookmark.eventId == Event.id
+    query = (
+        select(Event)
+        .join(Bookmark, Bookmark.eventId == Event.id)
+        .where(Bookmark.userId == user_id)
+    )
+    
+    return session.exec(query).all()

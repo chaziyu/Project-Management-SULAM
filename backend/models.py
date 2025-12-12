@@ -41,6 +41,10 @@ class Event(SQLModel, table=True):
     
     status: str = Field(default=EventStatus.UPCOMING)
 
+class EventReadWithStats(Event):
+    avgRating: float = 0.0
+    feedbackCount: int = 0
+
 class Registration(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     eventId: str = Field(index=True)

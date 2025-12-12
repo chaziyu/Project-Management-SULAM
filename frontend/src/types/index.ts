@@ -30,6 +30,11 @@ export interface Event {
   status: 'upcoming' | 'completed';
 }
 
+export interface EventWithStats extends Event {
+  avgRating: number;
+  feedbackCount: number;
+}
+
 export interface Registration {
   id: string;
   eventId: string;

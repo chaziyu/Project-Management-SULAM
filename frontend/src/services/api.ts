@@ -114,7 +114,7 @@ export const getFeedbacks = async (userId?: string, eventId?: string): Promise<F
   const params = new URLSearchParams();
   if (userId) params.append('userId', userId);
   if (eventId) params.append('eventId', eventId);
-  
+
   const { data } = await api.get(`/feedbacks?${params.toString()}`);
   return data;
 };
@@ -128,4 +128,19 @@ export const updateEvent = async (eventId: string, eventData: Partial<Event>): P
   const { data } = await api.put(`/events/${eventId}`, eventData);
   return data;
 };
+
+// ==========================================
+// OPTIMIZED METHODS (Performance)
+// ==========================================
+
+export const getOrganizerStats = async (): Promise<import('../types').EventWithStats[]> => {
+  const { data } = await api.get('/organizers/dashboard');
+  return data;
+};
+
+export const getBookmarkedEventsDetail = async (): Promise<Event[]> => {
+  const { data } = await api.get('/users/me/bookmarks/events');
+  return data;
+};
+
 export default api;
