@@ -144,7 +144,28 @@ async def get_events(
 ):
     """
     Fetch all events, with optional filtering and pagination.
+    
+    FEATURE: Auto-Conclude
+    Automatically marks past "upcoming" events as "completed" when this endpoint is hit.
+    This ensures the feed stays up-to-date lazily.
     """
+    # 1. Lazy Auto-Update: Mark past events as 'completed'
+    today = datetime.date.today()
+    
+    # Find events that are 'upcoming' but have a date strictly before today
+    past_events = session.exec(
+        select(Event)
+        .where(Event.status == EventStatus.UPCOMING)
+        .where(Event.date < today)
+    ).all()
+    
+    if past_events:
+        for event in past_events:
+            event.status = EventStatus.COMPLETED
+            session.add(event)
+        session.commit()
+    
+    # 2. Normal Fetch Logic
     query = select(Event)
     if organizerId:
         query = query.where(Event.organizerId == organizerId)
