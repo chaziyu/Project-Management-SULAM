@@ -15,6 +15,7 @@ from models import (
     BookmarkRequest,
     Event,
     EventReadWithStats,
+    EventStatus,
     Feedback,
     JoinRequest,
     Registration,
