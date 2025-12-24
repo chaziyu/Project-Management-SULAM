@@ -4,9 +4,9 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // --- Dynamic Token Injection for Supabase ---
-let getTokenFn: (() => Promise<string | null>) | null = null;
+let getTokenFn: ((options?: any) => Promise<string | null>) | null = null;
 
-export const setupSupabaseAuth = (tokenGetter: () => Promise<string | null>) => {
+export const setupSupabaseAuth = (tokenGetter: (options?: any) => Promise<string | null>) => {
   getTokenFn = tokenGetter;
 };
 
@@ -18,10 +18,11 @@ const customFetch = async (url: string, options: RequestInit = {}) => {
 
   if (getTokenFn) {
     try {
-      const token = await getTokenFn();
+      // Request a token specifically signed for Supabase (using the 'supabase' template)
+      const token = await getTokenFn({ template: 'supabase' });
+
       // Only attach if we have a token. Supabase works anonymously too if policies allow,
       // but for "authenticated" role sections, we need this token.
-      // NOTE: This assumes your Supabase project is configured to accept Clerk JWTs!
       if (token) {
         headers.set("Authorization", `Bearer ${token}`);
       }
