@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import { setupAxiosInterceptors } from './services/api' // Updated import
+import { setupSupabaseAuth } from './services/supabaseClient'
 import AppRoutes from './routes/'
 
 /**
@@ -16,6 +17,7 @@ function App() {
   useEffect(() => {
     if (isLoaded) {
       setupAxiosInterceptors(getToken);
+      setupSupabaseAuth(getToken);
       setAuthReady(true);
     }
   }, [isLoaded, getToken]);
