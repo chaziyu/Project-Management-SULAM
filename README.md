@@ -88,95 +88,31 @@ You will also need accounts for:
 
 ## ⚡ Installation & Setup
 
-### Step 1: Clone the Repository
+### ⚠️ IMPORTANT: Environment Variables
+Before starting the services, you **must** set up your environment variables. 
+1. Copy the `.env.example` file in **both** `backend/` and `frontend/` directories.
+2. Rename them to `.env`.
+3. Fill in the required credentials (Supabase, Clerk, etc.).
 
-```bash
-git clone https://github.com/Jayden-Yong/Project-Management-SULAM.git
-cd Project-Management-SULAM
-```
+---
 
-### Step 2: Backend Setup
-
-Navigate to the backend folder and set up the Python environment.
-
+### 1. Backend Setup
 ```bash
 cd backend
 python -m venv venv
-
-# Activate Virtual Environment
-# Windows:
-.\venv\Scripts\Activate.ps1
-# Mac/Linux:
-source venv/bin/activate
-
-# Install Dependencies
+# Windows: .\venv\Scripts\activate | Mac/Linux: source venv/bin/activate
 pip install -r requirements.txt
-```
-
-**Configuration (`.env`):**
-Create a file named `.env` in the `backend/` folder:
-
-```ini
-# App Config
-APP_NAME=UMission Backend
-DEBUG=True
-ENVIRONMENT=development
-HOST=0.0.0.0
-PORT=8000
-
-# Security (CORS) - Add your frontend URL here
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-
-# Database (PostgreSQL Connection String from Supabase)
-# Ensure it starts with postgresql://
-DATABASE_URL=postgresql://user:pass@host:5432/db
-
-# Auth (Clerk Issuer URL for JWT Verification)
-# Found in Clerk Dashboard -> API Keys -> Advanced -> ISSUER
-CLERK_ISSUER=https://your-clerk-issuer-url.clerk.accounts.dev
-```
-
-**Run the Server:**
-
-```bash
 python main.py
 ```
 
-> The Backend will run at `http://localhost:8000`. API Docs at `/docs`.
-
-### Step 3: Frontend Setup
-
-Open a new terminal window and navigate to the frontend folder.
-
+### 2. Frontend Setup
 ```bash
 cd frontend
 npm install
-```
-
-**Configuration (`.env`):**
-Create a file named `.env` in the `frontend/` folder:
-
-```ini
-# Application
-VITE_APP_NAME=UMission
-VITE_APP_VERSION=1.0.0
-VITE_API_URL=http://localhost:8000
-
-# Clerk Auth (Publishable Key)
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_publishable_key
-
-# Supabase Storage (For Image Uploads)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-**Run the Client:**
-
-```bash
 npm run dev
 ```
 
-> The Frontend will run at `http://localhost:5173`.
+---
 
 -----
 
