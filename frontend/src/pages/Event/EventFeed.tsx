@@ -125,6 +125,9 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
   // Since we fetch paginated data, applying client-side filter might hide all results.
   // Ideally this should be backend, but for now we filter what we have.
   const displayedEvents = events.filter(e => {
+    // Hide events where quota is full
+    if (e.currentVolunteers >= e.maxVolunteers) return false;
+    
     if (locationFilter === 'All') return true;
     const keywords: Record<string, string[]> = {
       'KK': ['KK', 'College', 'Nazrin'],

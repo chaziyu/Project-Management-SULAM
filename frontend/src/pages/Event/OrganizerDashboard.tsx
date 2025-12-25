@@ -11,6 +11,7 @@ import {
 } from '../../services/api';
 import { supabase } from '../../services/supabaseClient';
 import { Event, EventWithStats, Feedback, Registration, User } from '../../types';
+import { ActivityHeatmap } from './components/ActivityHeatmap';
 import { EventFormModal } from './components/EventFormModal';
 import { ParticipantsModal } from './components/ParticipantsModal';
 import { ReviewsModal } from './components/ReviewsModal';
@@ -201,6 +202,21 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   const filteredEvents = events.filter(e => e.status === activeTab);
 
   // ==========================================
+  // Calculate Statistics
+  // ==========================================
+  
+  const stats = {
+    totalEvents: events.length,
+    activeEvents: events.filter(e => e.status === 'upcoming').length,
+    completedEvents: events.filter(e => e.status === 'completed').length,
+    totalVolunteers: events.reduce((sum, e) => sum + (e.currentVolunteers || 0), 0),
+    avgRating: events.filter(e => e.avgRating).length > 0
+      ? (events.reduce((sum, e) => sum + (e.avgRating || 0), 0) / events.filter(e => e.avgRating).length).toFixed(1)
+      : '0.0',
+    totalReviews: events.reduce((sum, e) => sum + (e.feedbackCount || 0), 0)
+  };
+
+  // ==========================================
   // Render
   // ==========================================
 
@@ -219,6 +235,42 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           + New Event
         </button>
       </div>
+
+      {/* Statistics Section */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalEvents}</div>
+          <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Events</div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-2xl font-bold text-primary-900 mb-1">{stats.activeEvents}</div>
+          <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Active Events</div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-2xl font-bold text-primary-900 mb-1">{stats.completedEvents}</div>
+          <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Completed</div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalVolunteers}</div>
+          <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Volunteers</div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-2xl font-bold text-primary-900 mb-1">{stats.avgRating} ★</div>
+          <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Avg Rating</div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalReviews}</div>
+          <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Reviews</div>
+        </div>
+      </div>
+
+      {/* Activity Heatmap */}
+      <ActivityHeatmap events={events} />
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-slate-100 p-1.5 rounded-xl mb-6 w-fit">
