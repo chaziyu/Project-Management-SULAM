@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     """
     Handle startup and shutdown events.
     Creates tables on startup if they don't exist.
+    Starts background keep-alive task.
     """
     print(f"🚀 Starting {settings.APP_NAME}...", flush=True)
     try:
@@ -41,8 +42,26 @@ async def lifespan(app: FastAPI):
         print("✅ Database tables created/verified.", flush=True)
     except Exception as e:
         print(f"❌ Database Connection Failed: {e}", flush=True)
-        # We don't raise here to allow the app to start and return 500s instead of crashing/timing out
-        # This helps debugging on Render console
+        
+    # --- Keep-Alive Mechanism ---
+    # Pings itself every 20s to prevent Render sleep & Supabase idle timeout
+    import asyncio
+    import httpx
+    
+    async def keep_alive_loop():
+        url = "https://volunteer-backend-u15e.onrender.com/health"
+        print(f"🔄 Keep-Alive Task Started. Pinging {url} every 20s...", flush=True)
+        async with httpx.AsyncClient() as client:
+            while True:
+                try:
+                    await client.get(url, timeout=5)
+                except Exception as e:
+                    # Log but don't crash - server might be starting up
+                    pass 
+                await asyncio.sleep(20)
+
+    # Start loop in background without blocking startup
+    asyncio.create_task(keep_alive_loop())
         
     yield
     print("🛑 Shutting down...", flush=True)
@@ -128,8 +147,18 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+async def health_check(session: Session = Depends(get_session)):
+    """
+    Health check that also validates Database connection.
+    Used by keep-alive mechanism.
+    """
+    try:
+        # Simple query to keep Supabase connection active
+        session.exec(select(1)).first()
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        print(f"Health Check DB Error: {e}")
+        return {"status": "degraded", "database": "disconnected", "error": str(e)}
 
 # --- Event Management ---
 
