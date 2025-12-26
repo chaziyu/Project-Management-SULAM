@@ -13,8 +13,8 @@ engine = create_engine(
     echo=settings.DEBUG,
     pool_size=5,          # Low baseline to respect free tier limits (usually 60 max total)
     max_overflow=10,      # Allow burst but don't hold them
-    pool_timeout=30,      # Fail fast if busy
-    pool_recycle=1800,    # Recycle connections every 30 mins to avoid stale connection errors
+    pool_timeout=10,      # Fail fast (10s) instead of hanging. Helps frontend recover.
+    pool_recycle=300,     # Recycle every 5 mins. Supabase/PgBouncer kills idle connections fast.
     connect_args={
         "keepalives": 1,
     }

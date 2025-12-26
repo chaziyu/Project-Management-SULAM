@@ -150,38 +150,31 @@ async def get_events(
     Automatically marks past "upcoming" events as "completed" when this endpoint is hit.
     This ensures the feed stays up-to-date lazily.
     """
-    # 1. Lazy Auto-Update: Mark past events as 'completed'
-    try:
-        today = datetime.date.today()
-        
-        # Find events that are 'upcoming' but have a date strictly before today
-        # Events happening TODAY remain 'upcoming' until manually marked complete
-        past_events = session.exec(
-            select(Event)
-            .where(Event.status == EventStatus.UPCOMING)
-            .where(Event.date < today)  # Strictly less than (not <=)
-        ).all()
-        
-        if past_events:
-            for event in past_events:
-                event.status = EventStatus.COMPLETED
-                session.add(event)
-            session.commit()
-    except Exception as e:
-        print(f"⚠️ Auto-Update Failed: {e}")
-        session.rollback()
+    # Remove unsafe auto-update logic to prevent DB locking/timeouts on read
+    # Instead, we rely on strict filtering.
     
-    # 2. Normal Fetch Logic
     query = select(Event)
+    
+    # 1. Standard Filters
     if organizerId:
         query = query.where(Event.organizerId == organizerId)
+        
     if status:
-        query = query.where(Event.status == status)
+        if status == EventStatus.UPCOMING:
+            # Only show events that are upcoming AND in the future (or today)
+            # This effectively "hides" past events without needing to write to the DB
+            query = query.where(Event.status == EventStatus.UPCOMING)
+            query = query.where(Event.date >= datetime.date.today())
+        else:
+            # For 'completed' or other statuses, just match the status
+            query = query.where(Event.status == status)
+            
     if category and category != 'All':
         query = query.where(Event.category == category)
     if search:
         query = query.where(col(Event.title).ilike(f"%{search}%"))
     
+    # 2. Pagination
     query = query.offset(skip).limit(limit)
     return session.exec(query).all()
 
