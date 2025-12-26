@@ -47,7 +47,11 @@ export const EventDetailsModal: React.FC<Props> = ({ isOpen, onClose, event }) =
                     <div className="flex flex-col gap-2 text-sm text-slate-600 mb-6">
                         <div className="flex items-center gap-2">
                             <span>📅</span>
-                            <span className="font-medium">{event.date}</span>
+                            <span className="font-medium">
+                                {event.date}
+                                {event.time && <span className="text-slate-400 font-normal"> • {event.time}</span>}
+                                {event.duration && <span className="text-slate-400 font-normal"> ({event.duration})</span>}
+                            </span>
                         </div>
                         <div className="flex items-center gap-2">
                             <span>📍</span>
@@ -55,7 +59,10 @@ export const EventDetailsModal: React.FC<Props> = ({ isOpen, onClose, event }) =
                         </div>
                         <div className="flex items-center gap-2">
                             <span>👤</span>
-                            <span className="font-medium">Organized by {event.organizerName}</span>
+                            <span className="font-medium">
+                                Organized by {event.organizerName}
+                                {event.contactPerson && <span className="text-slate-400 font-normal"> • Contact: {event.contactPerson}</span>}
+                            </span>
                         </div>
                     </div>
 
@@ -64,6 +71,13 @@ export const EventDetailsModal: React.FC<Props> = ({ isOpen, onClose, event }) =
                             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2">About Activity</h3>
                             <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">{event.description}</p>
                         </div>
+
+                        {event.requirements && (
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">Special Requirements</h3>
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{event.requirements}</p>
+                            </div>
+                        )}
 
                         {event.tasks && (
                             <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">

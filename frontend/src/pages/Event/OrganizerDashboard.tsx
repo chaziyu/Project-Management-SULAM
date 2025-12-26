@@ -60,7 +60,11 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
     maxVolunteers: 20,
     description: '',
     tasks: '',
-    imageUrl: ''
+    imageUrl: '',
+    time: '',
+    duration: '',
+    contactPerson: '',
+    requirements: ''
   });
 
   // ==========================================
@@ -114,7 +118,12 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
       maxVolunteers: event.maxVolunteers,
       description: event.description,
       tasks: event.tasks || '',
-      imageUrl: event.imageUrl || ''
+      imageUrl: event.imageUrl || '',
+      // New Fields
+      time: event.time || '',
+      duration: event.duration || '',
+      contactPerson: event.contactPerson || '',
+      requirements: event.requirements || ''
     });
     setShowModal(true);
   };
@@ -124,7 +133,8 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
     setEditingEventId(null);
     setFormData({
       title: '', date: '', location: '', category: 'Campus Life',
-      maxVolunteers: 20, description: '', tasks: '', imageUrl: ''
+      maxVolunteers: 20, description: '', tasks: '', imageUrl: '',
+      time: '', duration: '', contactPerson: '', requirements: ''
     });
   };
 
@@ -204,7 +214,7 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   // ==========================================
   // Calculate Statistics
   // ==========================================
-  
+
   const stats = {
     totalEvents: events.length,
     activeEvents: events.filter(e => e.status === 'upcoming').length,
@@ -242,27 +252,27 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalEvents}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Events</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.activeEvents}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Active Events</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.completedEvents}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Completed</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalVolunteers}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Volunteers</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.avgRating} ★</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Avg Rating</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalReviews}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Reviews</div>

@@ -49,6 +49,13 @@ export interface Event {
   description: string;
   imageUrl?: string;
   tasks?: string;
+
+  // Extended Details
+  time?: string;
+  duration?: string;
+  contactPerson?: string;
+  requirements?: string;
+
   status: 'upcoming' | 'completed';
 
   // Organizer Info

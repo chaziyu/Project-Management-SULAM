@@ -66,9 +66,33 @@ export const EventFormModal: React.FC<Props> = ({
                                 </select>
                             </div>
                         </div>
-                        <div><label className="block text-xs font-bold text-slate-700 mb-1">Location / Venue</label><input type="text" required placeholder="e.g., DTC, Tasik Varsiti" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} /></div>
+
+                        {/* New Fields Row 1 */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">Time</label>
+                                <input type="time" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.time || ''} onChange={e => setFormData({ ...formData, time: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">Duration</label>
+                                <input type="text" placeholder="e.g. 2 hours" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.duration || ''} onChange={e => setFormData({ ...formData, duration: e.target.value })} />
+                            </div>
+                        </div>
+
+                        {/* New Fields Row 2 */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">Location / Venue</label>
+                                <input type="text" required placeholder="e.g., DTC, Tasik Varsiti" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">Contact Person</label>
+                                <input type="text" placeholder="Name/Phone" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.contactPerson || ''} onChange={e => setFormData({ ...formData, contactPerson: e.target.value })} />
+                            </div>
+                        </div>
                         <div><label className="block text-xs font-bold text-slate-700 mb-1">Max Volunteers</label><input type="number" required className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.maxVolunteers} onChange={e => setFormData({ ...formData, maxVolunteers: parseInt(e.target.value) })} /></div>
                         <div><label className="block text-xs font-bold text-slate-700 mb-1">Description</label><textarea required placeholder="What will students be doing?" rows={3} className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })}></textarea></div>
+                        <div><label className="block text-xs font-bold text-slate-700 mb-1">Special Requirements</label><textarea placeholder="e.g. Wear sports attire, bring water" rows={2} className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm" value={formData.requirements || ''} onChange={e => setFormData({ ...formData, requirements: e.target.value })}></textarea></div>
                         <div><label className="block text-xs font-bold text-slate-700 mb-1">Volunteer Roles & Tasks</label><textarea required placeholder="• Role A (Qty)&#10;• Role B (Qty)" rows={3} className="w-full px-4 py-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary-500 text-sm font-mono" value={formData.tasks} onChange={e => setFormData({ ...formData, tasks: e.target.value })}></textarea><p className="text-[10px] text-slate-400 mt-1">Be specific so students know what to expect.</p></div>
                     </form>
                 </div>
