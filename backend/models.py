@@ -45,6 +45,12 @@ class Event(SQLModel, table=True):
     # Serialized JSON or newline-separated string of tasks
     tasks: str = Field(default="")
     
+    # Extended event details (added to match frontend requirements)
+    time: Optional[str] = Field(default=None)  # e.g., "14:00" or "2:00 PM"
+    duration: Optional[str] = Field(default=None)  # e.g., "2 hours"
+    contactPerson: Optional[str] = Field(default=None)  # Contact name/info
+    requirements: Optional[str] = Field(default=None)  # Special requirements/notes
+    
     status: str = Field(default=EventStatus.UPCOMING)
 
 class EventReadWithStats(Event):

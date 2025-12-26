@@ -155,10 +155,11 @@ async def get_events(
         today = datetime.date.today()
         
         # Find events that are 'upcoming' but have a date strictly before today
+        # Events happening TODAY remain 'upcoming' until manually marked complete
         past_events = session.exec(
             select(Event)
             .where(Event.status == EventStatus.UPCOMING)
-            .where(Event.date < today)
+            .where(Event.date < today)  # Strictly less than (not <=)
         ).all()
         
         if past_events:
@@ -240,8 +241,18 @@ async def update_event_details(
     db_event.description = event_update.description
     db_event.tasks = event_update.tasks
     
+    # Update optional fields
     if event_update.imageUrl: 
         db_event.imageUrl = event_update.imageUrl
+    
+    if event_update.time is not None:
+        db_event.time = event_update.time
+    if event_update.duration is not None:
+        db_event.duration = event_update.duration
+    if event_update.contactPerson is not None:
+        db_event.contactPerson = event_update.contactPerson
+    if event_update.requirements is not None:
+        db_event.requirements = event_update.requirements
         
     session.add(db_event)
     session.commit()
