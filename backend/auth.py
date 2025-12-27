@@ -68,7 +68,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         print(f"Error: {str(e)}")
         print(f"Configured Issuer: {settings.CLERK_ISSUER}")
         print(f"------------------------")
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+        raise HTTPException(status_code=401, detail=f"Auth Failed: {str(e)}")
 
 def is_organizer(user_payload: dict) -> bool:
     """

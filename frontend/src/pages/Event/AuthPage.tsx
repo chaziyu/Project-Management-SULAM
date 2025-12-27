@@ -217,6 +217,8 @@ export const AuthPage: React.FC<AuthPageProps> = () => {
           <form className="space-y-4" onSubmit={handleVerify}>
             <input
               type="text"
+              name="code"
+              autoComplete="one-time-code"
               required
               className="w-full h-12 px-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all text-sm outline-none text-center tracking-widest text-lg font-bold"
               placeholder="000000"
@@ -247,6 +249,8 @@ export const AuthPage: React.FC<AuthPageProps> = () => {
               </p>
               <input
                 type="text"
+                name="resetCode"
+                autoComplete="one-time-code"
                 required
                 className="w-full h-12 px-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all text-sm outline-none text-center tracking-widest text-lg font-bold"
                 placeholder="Code (e.g. 123456)"
@@ -255,6 +259,8 @@ export const AuthPage: React.FC<AuthPageProps> = () => {
               />
               <input
                 type="password"
+                name="newPassword"
+                autoComplete="new-password"
                 required
                 className="w-full h-12 px-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all text-sm outline-none"
                 placeholder="New Password"
@@ -284,6 +290,8 @@ export const AuthPage: React.FC<AuthPageProps> = () => {
             {!isLogin && !isForgot && (
               <input
                 type="text"
+                name="name"
+                autoComplete="name"
                 required
                 className="w-full h-12 px-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all text-sm outline-none"
                 placeholder="Full Name / Club Name"
@@ -294,6 +302,8 @@ export const AuthPage: React.FC<AuthPageProps> = () => {
 
             <input
               type="email"
+              name="email"
+              autoComplete="email"
               required
               className="w-full h-12 px-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all text-sm outline-none"
               placeholder="Email address"
@@ -305,6 +315,8 @@ export const AuthPage: React.FC<AuthPageProps> = () => {
               <div className="space-y-2">
                 <input
                   type="password"
+                  name="password"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   required
                   className="w-full h-12 px-4 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:bg-white focus:ring-2 focus:ring-primary-500 transition-all text-sm outline-none"
                   placeholder="Password"
