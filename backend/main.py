@@ -194,6 +194,7 @@ async def get_events(
             # This effectively "hides" past events without needing to write to the DB
             query = query.where(Event.status == EventStatus.UPCOMING)
             query = query.where(Event.date >= datetime.date.today())
+            print(f"🔍 DEBUG: Filtering UPCOMING events >= {datetime.date.today()}", flush=True)
         else:
             # For 'completed' or other statuses, just match the status
             query = query.where(Event.status == status)
@@ -205,7 +206,10 @@ async def get_events(
     
     # 2. Pagination
     query = query.offset(skip).limit(limit)
-    return session.exec(query).all()
+    
+    results = session.exec(query).all()
+    print(f"✅ DEBUG: Found {len(results)} events for params: status={status}, cat={category}", flush=True)
+    return results
 
 @app.get("/events/{event_id}", response_model=Event)
 async def get_event_by_id(
