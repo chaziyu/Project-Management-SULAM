@@ -55,7 +55,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
                 rsa_key,
                 algorithms=["RS256"],
                 audience=None,
-                issuer=settings.CLERK_ISSUER
+                issuer=settings.CLERK_ISSUER,
+                options={"leeway": 30} # Tolerates 30s clock skew
             )
         else:
             # Fallback for local testing (NOT SECURE in production)
@@ -68,7 +69,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         print(f"Error: {str(e)}")
         print(f"Configured Issuer: {settings.CLERK_ISSUER}")
         print(f"------------------------")
-        raise HTTPException(status_code=401, detail=f"Auth Failed: {str(e)}")
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 def is_organizer(user_payload: dict) -> bool:
     """
