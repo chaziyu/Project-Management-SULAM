@@ -17,6 +17,7 @@ engine = create_engine(
     pool_recycle=1800,    # Recycle connections every 30 mins to avoid stale connection errors
     connect_args={
         "keepalives": 1,
+        "connect_timeout": 10, # Give Supabase a bit more time to wake up (default is usually less)
     }
 )
 
