@@ -62,6 +62,7 @@ async def keep_alive_logic():
     """
     # URL to self-ping (Use the Render URL provided by user)
     SELF_URL = "https://volunteer-backend-u15e.onrender.com/health"
+    FRONTEND_URL = "https://umissionweb.vercel.app"
     
     while True:
         try:
@@ -70,11 +71,12 @@ async def keep_alive_logic():
             # 1. DB Ping (Run in thread to avoid blocking async loop)
             await asyncio.to_thread(db_ping_sync)
             
-            # 2. Self-Ping (HTTP Traffic)
+            # 2. Self-Ping & Frontend Ping (HTTP Traffic)
             async with httpx.AsyncClient() as client:
                 await client.get(SELF_URL, timeout=10)
+                await client.get(FRONTEND_URL, timeout=10)
                 
-            print(f"💓 Keep-alive: DB & Self-Ping ({SELF_URL}) sent", flush=True)
+            print(f"💓 Keep-alive: DB, Self({SELF_URL}) & Frontend({FRONTEND_URL}) pinged", flush=True)
             
         except asyncio.CancelledError:
             break
