@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getEvents, getUserBookmarks, joinEvent, toggleBookmark } from '../../services/api';
 import { Event, User, UserRole } from '../../types';
+import { SkeletonLoader } from '../../components/SkeletonLoader';
 
 interface Props {
   user: User | null;
@@ -127,7 +128,7 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
   const displayedEvents = events.filter(e => {
     // Hide events where quota is full
     if (e.currentVolunteers >= e.maxVolunteers) return false;
-    
+
     if (locationFilter === 'All') return true;
     const keywords: Record<string, string[]> = {
       'KK': ['KK', 'College', 'Nazrin'],
@@ -197,7 +198,7 @@ export const EventFeed: React.FC<Props> = ({ user, onNavigate }) => {
       {/* Event Cards */}
       {loading && events.length === 0 ? (
         <div className="space-y-6">
-          {[1, 2, 3].map(i => <div key={i} className="h-48 bg-white rounded-2xl shadow-sm border border-slate-100 animate-pulse"></div>)}
+          <SkeletonLoader variant="card" count={3} />
         </div>
       ) : displayedEvents.length === 0 ? (
         <div className="text-center py-16">

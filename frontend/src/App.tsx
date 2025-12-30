@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-react'
 import { setupAxiosInterceptors } from './services/api' // Updated import
 import { setupSupabaseAuth } from './services/supabaseClient'
 import AppRoutes from './routes/'
+import { PageLoader } from './components/PageLoader'
 
 /**
  * Root Application Component.
@@ -25,11 +26,8 @@ function App() {
   // Loading State: Wait for Clerk + Axios setup before rendering routes
   if (!isLoaded || !authReady) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-medium animate-pulse">Loading UMission...</p>
-        </div>
+      <div className="h-screen w-screen flex items-center justify-center bg-white">
+        <PageLoader />
       </div>
     );
   }

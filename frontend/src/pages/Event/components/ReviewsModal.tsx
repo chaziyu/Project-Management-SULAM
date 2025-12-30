@@ -1,12 +1,14 @@
 import React from 'react';
 
 import { Feedback } from '../../../types';
+import { SkeletonLoader } from '../../../components/SkeletonLoader';
 
 interface Props {
     isOpen: boolean;
     onClose: () => void;
     reviews: Feedback[];
     eventTitle: string;
+    loading: boolean;
 }
 
 /**
@@ -14,7 +16,7 @@ interface Props {
  * Displays list of student feedbacks and ratings.
  */
 
-export const ReviewsModal: React.FC<Props> = ({ isOpen, onClose, reviews, eventTitle }) => {
+export const ReviewsModal: React.FC<Props> = ({ isOpen, onClose, reviews, eventTitle, loading }) => {
     if (!isOpen) return null;
 
     return (
@@ -26,7 +28,11 @@ export const ReviewsModal: React.FC<Props> = ({ isOpen, onClose, reviews, eventT
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                    {reviews.length === 0 ? (
+                    {loading ? (
+                        <div className="space-y-3">
+                            <SkeletonLoader variant="list-item" count={3} />
+                        </div>
+                    ) : reviews.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400"><p>No reviews yet.</p></div>
                     ) : (
                         reviews.map((review) => (

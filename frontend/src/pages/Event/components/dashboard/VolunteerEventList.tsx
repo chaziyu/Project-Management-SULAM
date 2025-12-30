@@ -1,6 +1,7 @@
 import React from 'react';
 import { Registration, Event } from '../../../../types';
 import { getFeedbacks } from '../../../../services/api';
+import { SkeletonLoader } from '../../../../components/SkeletonLoader';
 
 interface Props {
     loading: boolean;
@@ -30,7 +31,7 @@ export const VolunteerEventList: React.FC<Props> = ({
     if (loading) {
         return (
             <div className="space-y-3">
-                {[1, 2].map(i => <div key={i} className="h-20 bg-white rounded-2xl border border-slate-100 animate-pulse"></div>)}
+                <SkeletonLoader variant="list" count={4} />
             </div>
         );
     }

@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { Registration } from '../../../types';
+import { SkeletonLoader } from '../../../components/SkeletonLoader';
 
 interface Props {
     isOpen: boolean;
@@ -9,6 +10,7 @@ interface Props {
     eventTitle: string;
     eventId: string;
     onAction: (regId: string, action: 'confirmed' | 'rejected', eventId: string) => void;
+    loading: boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ interface Props {
  */
 
 export const ParticipantsModal: React.FC<Props> = ({
-    isOpen, onClose, participants, eventTitle, eventId, onAction
+    isOpen, onClose, participants, eventTitle, eventId, onAction, loading
 }) => {
     if (!isOpen) return null;
 
@@ -30,7 +32,11 @@ export const ParticipantsModal: React.FC<Props> = ({
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                    {participants.length === 0 ? (
+                    {loading ? (
+                        <div className="space-y-3">
+                            <SkeletonLoader variant="list-item" count={5} />
+                        </div>
+                    ) : participants.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400"><p>No applications yet.</p></div>
                     ) : (
                         participants.map(p => (

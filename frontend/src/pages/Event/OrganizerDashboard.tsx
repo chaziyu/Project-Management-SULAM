@@ -15,6 +15,7 @@ import { ActivityHeatmap } from './components/ActivityHeatmap';
 import { EventFormModal } from './components/EventFormModal';
 import { ParticipantsModal } from './components/ParticipantsModal';
 import { ReviewsModal } from './components/ReviewsModal';
+import { SkeletonLoader } from '../../components/SkeletonLoader';
 
 // ==========================================
 // Types
@@ -38,6 +39,8 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   // --- State: Data & UI ---
   const [events, setEvents] = useState<EventWithStats[]>([]);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isModalLoading, setIsModalLoading] = useState(false);
 
   // --- State: Modals ---
   const [showModal, setShowModal] = useState(false);
@@ -69,11 +72,14 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   const fetchEvents = async () => {
     try {
+      setIsLoading(true);
       // Fetch stats-enriched events (efficient single query)
       const data = await getOrganizerStats();
       setEvents(data);
     } catch (e) {
       console.error("Failed to load events", e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -85,18 +91,22 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
   // Load reviews lazily when modal opens
   useEffect(() => {
     if (reviewsModal?.isOpen) {
+      setIsModalLoading(true);
       getFeedbacks(undefined, reviewsModal.eventId)
         .then(setCurrentReviews)
-        .catch(console.error);
+        .catch(console.error)
+        .finally(() => setIsModalLoading(false));
     }
   }, [reviewsModal?.isOpen]);
 
   // Load participants lazily when modal opens
   useEffect(() => {
     if (participantModal?.isOpen) {
+      setIsModalLoading(true);
       getEventRegistrations(participantModal.eventId)
         .then(setCurrentParticipants)
-        .catch(console.error);
+        .catch(console.error)
+        .finally(() => setIsModalLoading(false));
     }
   }, [participantModal?.isOpen]);
 
@@ -201,10 +211,23 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   const filteredEvents = events.filter(e => e.status === activeTab);
 
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      }).toUpperCase();
+    } catch {
+      return dateString;
+    }
+  };
+
   // ==========================================
   // Calculate Statistics
   // ==========================================
-  
+
   const stats = {
     totalEvents: events.length,
     activeEvents: events.filter(e => e.status === 'upcoming').length,
@@ -242,27 +265,27 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalEvents}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Events</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.activeEvents}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Active Events</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.completedEvents}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Completed</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalVolunteers}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Volunteers</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.avgRating} ★</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Avg Rating</div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-primary-50 to-primary-100 p-4 rounded-xl border border-primary-200 shadow-sm hover:shadow-md transition-shadow">
           <div className="text-2xl font-bold text-primary-900 mb-1">{stats.totalReviews}</div>
           <div className="text-xs font-bold text-primary-700 uppercase tracking-wider">Total Reviews</div>
@@ -286,7 +309,11 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
       </div>
 
       {/* Content Grid */}
-      {filteredEvents.length === 0 ? (
+      {isLoading ? (
+        <div className="grid gap-4">
+          <SkeletonLoader variant="card" count={3} />
+        </div>
+      ) : filteredEvents.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200">
           <p className="text-slate-400 text-sm font-medium">No events found in this category.</p>
         </div>
@@ -303,9 +330,17 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
               )}
 
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-bold text-primary-700 bg-primary-50 px-2 py-1 rounded-md uppercase tracking-wider">{event.category}</span>
-                  <span className="text-xs font-medium text-slate-400">{event.date}</span>
+                <div className="mb-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-bold text-primary-700 bg-primary-50 px-2 py-1 rounded-md uppercase tracking-wider">{event.category}</span>
+                    {activeTab === 'upcoming' && event.currentVolunteers >= event.maxVolunteers && (
+                      <span className="text-[10px] font-bold text-orange-700 bg-orange-50 px-2 py-1 rounded-md uppercase tracking-wider border border-orange-100 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                        Capacity Reached
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-slate-400 block mb-1">{formatDate(event.date)}</span>
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 mb-1">{event.title}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-1">📍 {event.location}</p>
@@ -388,6 +423,7 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
         eventTitle={participantModal?.eventTitle || ''}
         eventId={participantModal?.eventId || ''}
         onAction={handleParticipantAction}
+        loading={isModalLoading}
       />
 
       <ReviewsModal
@@ -395,6 +431,7 @@ export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
         onClose={() => setReviewsModal(null)}
         reviews={currentReviews}
         eventTitle={reviewsModal?.eventTitle || ''}
+        loading={isModalLoading}
       />
 
     </div>
