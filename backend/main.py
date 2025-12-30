@@ -66,7 +66,9 @@ async def keep_alive_logic():
     
     while True:
         try:
-            await asyncio.sleep(20)
+            # Ping every 5 minutes (300s) to prevent Render spin-down (occurs after 15m inactivity)
+            # This significantly reduces unnecessary database load
+            await asyncio.sleep(300)
             
             # 1. DB Ping (Run in thread to avoid blocking async loop)
             await asyncio.to_thread(db_ping_sync)
