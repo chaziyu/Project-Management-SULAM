@@ -1,0 +1,72 @@
+============================================================
+PROJECT SETUP GUIDE - HOW TO HOST LOCALLY
+============================================================
+
+PREREQUISITES:
+1. Python (Latest version)
+2. Node.js (Latest version)
+3. VS Code (Recommended)
+
+------------------------------------------------------------
+STEP 1: BACKEND SETUP (Terminal 1)
+------------------------------------------------------------
+** Do not close this terminal after starting the server **
+
+1. Navigate to the backend directory:
+   cd D:\Documents\GitHub\Project-Management-SULAM\Project-Management-SULAM\backend
+
+2. Create a virtual environment (First time only):
+   python -m venv venv
+
+3. Activate the virtual environment:
+   .\venv\Scripts\activate
+
+   [NOTE] If you see a red "SecurityError/UnauthorizedAccess", run this command first:
+   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+4. Install dependencies:
+   pip install -r requirements.txt
+
+5. Run the Backend Server:
+   python main.py
+
+   -> Success Status: You should see "Uvicorn running on http://0.0.0.0:8000"
+
+------------------------------------------------------------
+STEP 2: FRONTEND SETUP (Terminal 2)
+------------------------------------------------------------
+** Open a NEW terminal window (Click '+' in VS Code) **
+
+1. Navigate to the frontend directory:
+   cd D:\Documents\GitHub\Project-Management-SULAM\Project-Management-SULAM\frontend
+
+2. Install dependencies (First time only):
+   npm install
+
+3. Run the Frontend Development Server:
+   npm run dev
+
+   -> Success Status: You should see "Local: http://localhost:5173"
+
+------------------------------------------------------------
+STEP 3: HOW TO ACCESS
+------------------------------------------------------------
+1. Open your browser.
+2. Go to: http://localhost:5173
+
+* To view Backend API Documentation, go to: http://localhost:8000/docs
+
+------------------------------------------------------------
+TROUBLESHOOTING & CONFIGURATION (.ENV)
+------------------------------------------------------------
+If the application cannot connect to the database or login fails, 
+please check your environment variables:
+
+1. Backend Folder (.env file):
+   - Must contain: SUPABASE_URL, SUPABASE_KEY, CLERK_SECRET_KEY
+
+2. Frontend Folder (.env file):
+   - Must contain: VITE_CLERK_PUBLISHABLE_KEY
+   - API URL setting: VITE_API_URL=http://localhost:8000
+
+============================================================

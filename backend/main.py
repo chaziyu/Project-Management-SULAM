@@ -1,6 +1,6 @@
-import asyncio
+
 import datetime
-import httpx
+
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -47,47 +47,10 @@ async def lifespan(app: FastAPI):
         # We don't raise here to allow the app to start and return 500s instead of crashing/timing out
         # This helps debugging on Render console
         
-    # Start background keep-alive task
-    keep_alive_task = asyncio.create_task(keep_alive_logic())
-        
     yield
     print("🛑 Shutting down...", flush=True)
-    keep_alive_task.cancel()
 
-async def keep_alive_logic():
-    """
-    Background task to:
-    1. Ping DB to keep connection pool active.
-    2. Ping own Public URL to prevent Render free-tier spin-down (simulate traffic).
-    """
-    # URL to self-ping (Use the Render URL provided by user)
-    SELF_URL = "https://volunteer-backend-u15e.onrender.com/health"
-    FRONTEND_URL = "https://umissionweb.vercel.app"
-    
-    while True:
-        try:
-            # Ping every 5 minutes (300s) to prevent Render spin-down (occurs after 15m inactivity)
-            # This significantly reduces unnecessary database load
-            await asyncio.sleep(300)
-            
-            # 1. DB Ping (Run in thread to avoid blocking async loop)
-            await asyncio.to_thread(db_ping_sync)
-            
-            # 2. Self-Ping & Frontend Ping (HTTP Traffic)
-            async with httpx.AsyncClient() as client:
-                await client.get(SELF_URL, timeout=10)
-                await client.get(FRONTEND_URL, timeout=10)
-                
-            print(f"💓 Keep-alive: DB, Self({SELF_URL}) & Frontend({FRONTEND_URL}) pinged", flush=True)
-            
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            print(f"⚠️ Keep-alive failed: {e}", flush=True)
 
-def db_ping_sync():
-    with Session(engine) as session:
-        session.exec(text("SELECT 1"))
 
 app = FastAPI(
     title=settings.APP_NAME,
