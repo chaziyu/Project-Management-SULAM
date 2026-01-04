@@ -38,9 +38,9 @@ interface Props {
 export const OrganizerDashboard: React.FC<Props> = ({ user }) => {
 
   // --- State: Data & UI ---
-  const [events, setEvents] = useState<EventWithStats[]>([]);
+  // const [events, setEvents] = useState<EventWithStats[]>([]); // Replaced by useQuery
   const [activeTab, setActiveTab] = useState<'upcoming' | 'completed'>('upcoming');
-  const [isLoading, setIsLoading] = useState(true);
+  // const [isLoading, setIsLoading] = useState(true); // Replaced by useQuery
   const [isModalLoading, setIsModalLoading] = useState(false);
 
   // --- State: Modals ---
