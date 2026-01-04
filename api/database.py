@@ -1,7 +1,7 @@
 from sqlalchemy.pool import NullPool
 from sqlmodel import Session, create_engine
 
-from config import settings
+from api.config import settings
 
 if not settings.DATABASE_URL:
     raise ValueError("DATABASE_URL is not set in environment")
