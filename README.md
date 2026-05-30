@@ -279,7 +279,4 @@ npm run dev
 
 ---
 
-## 📄 License
-This project is part of the **SULAM** group initiative at Universiti Malaya.
-
 **Vercel App Link:** [https://umissionweb.vercel.app/](https://umissionweb.vercel.app/)
